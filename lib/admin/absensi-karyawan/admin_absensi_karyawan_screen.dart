@@ -15,6 +15,7 @@ class HistoryItem {
   final DateTime? checkInTime, checkOutTime;
   final String? checkInLocation, checkOutLocation;
   final String? leaveType, reason, status, fileProof;
+  final String? statusCheckIn, statusCheckOut;
 
   HistoryItem({
     required this.itemType,
@@ -27,29 +28,31 @@ class HistoryItem {
     this.reason,
     this.status,
     this.fileProof,
+    this.statusCheckIn,
+    this.statusCheckOut,
   });
 
- // Di dalam file AdminEmployeeHistoryScreen.dart
-
-factory HistoryItem.fromJson(Map<String, dynamic> json) {
-  bool isAttendance = json.containsKey('date');
-  return HistoryItem(
-    itemType: isAttendance ? 'attendance' : 'leave_request',
-    createdAt: DateTime.parse(isAttendance ? json['date'] : json['start_date']),
-    
-    // Data Attendance
-    checkInTime: isAttendance && json['check_in_time'] != null ? DateTime.parse(json['check_in_time']) : null,
-    checkOutTime: isAttendance && json['check_out_time'] != null ? DateTime.parse(json['check_out_time']) : null,
-    checkInLocation: isAttendance ? json['check_in_location'] : json['location'], // <-- PERUBAHAN DI SINI
-    checkOutLocation: json['check_out_location'],
-    
-    // Data Leave Request
-    leaveType: json['type'],
-    reason: json['reason'],
-    status: json['status'],
-    fileProof: json['file_proof'],
-  );
-}
+  factory HistoryItem.fromJson(Map<String, dynamic> json) {
+    bool isAttendance = json.containsKey('date');
+    return HistoryItem(
+      itemType: isAttendance ? 'attendance' : 'leave_request',
+      createdAt: DateTime.parse(isAttendance ? json['date'] : json['start_date']),
+      checkInTime: isAttendance && json['check_in_time'] != null
+          ? DateTime.parse(json['check_in_time'])
+          : null,
+      checkOutTime: isAttendance && json['check_out_time'] != null
+          ? DateTime.parse(json['check_out_time'])
+          : null,
+      checkInLocation: isAttendance ? json['check_in_location'] : json['location'],
+      checkOutLocation: json['check_out_location'],
+      statusCheckIn: json['status_check_in'],
+      statusCheckOut: json['status_check_out'],
+      leaveType: json['type'],
+      reason: json['reason'],
+      status: json['status'],
+      fileProof: json['file_proof'],
+    );
+  }
 }
 
 class AdminEmployeeHistoryScreen extends StatefulWidget {
@@ -135,67 +138,64 @@ class _AdminEmployeeHistoryScreenState
 
     showDialog(
       context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 10, 10),
-                  child: Row(
-                    children: [
-                      Icon(Icons.location_on, color: AppColor.primaryColor),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: PoppinsTextStyle.bold.copyWith(fontSize: 16),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  height: 400,
-                  child: GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: location,
-                      zoom: 17,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 10, 10),
+              child: Row(
+                children: [
+                  Icon(Icons.location_on, color: AppColor.primaryColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: PoppinsTextStyle.bold.copyWith(fontSize: 16),
                     ),
-                    markers: {
-                      Marker(markerId: MarkerId(title), position: location),
-                    },
                   ),
-                ),
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
             ),
-          ),
+            SizedBox(
+              height: 400,
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: location,
+                  zoom: 17,
+                ),
+                markers: {
+                  Marker(markerId: MarkerId(title), position: location),
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
+  Future<void> _launchFile(String? filePath) async {
+    if (filePath == null || filePath.isEmpty) {
+      _showSnackBar("File tidak ditemukan.", isError: true);
+      return;
+    }
 
-Future<void> _launchFile(String? filePath) async {
-  if (filePath == null || filePath.isEmpty) {
-    _showSnackBar("File tidak ditemukan.", isError: true);
-    return;
+    final url = Uri.parse('$_baseUrl/storage/$filePath');
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      _showSnackBar("Tidak bisa membuka file: $url", isError: true);
+    }
   }
-
-
-  final url = Uri.parse('$_baseUrl/storage/$filePath');
-
-  if (await canLaunchUrl(url)) {
-    await launchUrl(url, mode: LaunchMode.externalApplication);
-  } else {
-    _showSnackBar("Tidak bisa membuka file: $url", isError: true);
-  }
-}
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -238,29 +238,28 @@ Future<void> _launchFile(String? filePath) async {
         ),
         centerTitle: true,
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _groupedHistory.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _groupedHistory.isEmpty
               ? _buildEmptyState()
               : RefreshIndicator(
-                onRefresh: _loadHistory,
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _groupedHistory.keys.length,
-                  itemBuilder: (context, index) {
-                    final date = _groupedHistory.keys.elementAt(index);
-                    final items = _groupedHistory[date]!;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildDateHeader(date, index == 0),
-                        ...items.map((item) => _buildHistoryItem(item)),
-                      ],
-                    );
-                  },
+                  onRefresh: _loadHistory,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _groupedHistory.keys.length,
+                    itemBuilder: (context, index) {
+                      final date = _groupedHistory.keys.elementAt(index);
+                      final items = _groupedHistory[date]!;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildDateHeader(date, index == 0),
+                          ...items.map((item) => _buildHistoryItem(item)),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              ),
     );
   }
 
@@ -300,6 +299,8 @@ Future<void> _launchFile(String? filePath) async {
   }
 
   Widget _buildAttendanceCard(HistoryItem item) {
+    final isToday = DateUtils.isSameDay(item.createdAt.toLocal(), DateTime.now());
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -323,86 +324,124 @@ Future<void> _launchFile(String? filePath) async {
               item.checkInLocation,
               Icons.login_rounded,
               const Color(0xFF10B981),
+              item.statusCheckIn,
             ),
             Container(height: 1, color: Colors.grey[200]),
-            _buildAttendanceRow(
-              'Check Out',
-              item.checkOutTime,
-              item.checkOutLocation,
-              Icons.logout_rounded,
-              const Color(0xFFEF4444),
-            ),
+            // Tampilkan checkout atau status alpha
+            if (item.checkOutTime != null)
+              _buildAttendanceRow(
+                'Check Out',
+                item.checkOutTime,
+                item.checkOutLocation,
+                Icons.logout_rounded,
+                const Color(0xFFEF4444),
+                item.statusCheckOut,
+              )
+            else if (!isToday)
+              _buildAttendanceRow(
+                'Check Out',
+                null,
+                null,
+                Icons.cancel_rounded,
+                const Color(0xFF94A3B8),
+                'Alpha',
+              )
+            else
+              _buildAttendanceRow(
+                'Check Out',
+                null,
+                null,
+                Icons.logout_rounded,
+                const Color(0xFFEF4444),
+                null,
+              ),
           ],
         ),
       ),
     );
   }
 
-// Di dalam file AdminEmployeeHistoryScreen.dart
+  Widget _buildLeaveCard(HistoryItem item) {
+    final color = _getApprovalColor(item.status ?? 'pending');
+    final icon = item.leaveType == 'izin'
+        ? Icons.info_rounded
+        : Icons.event_rounded;
 
-Widget _buildLeaveCard(HistoryItem item) {
-  final color = _getApprovalColor(item.status ?? 'pending');
-  final icon = item.leaveType == 'izin' ? Icons.info_rounded : Icons.event_rounded;
-  
-  return Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 4))],
-    ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Column(
-        children: [
-          // Bagian atas card (info pengajuan)
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: _buildApprovalItemRow(
-              icon: icon,
-              iconColor: color,
-              label: 'Pengajuan ${item.leaveType?.toUpperCase()}',
-              approvalStatus: item.status!,
-              reason: item.reason!,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: _buildApprovalItemRow(
+                icon: icon,
+                iconColor: color,
+                label: 'Pengajuan ${item.leaveType?.toUpperCase() ?? 'N/A'}',
+                approvalStatus: item.status ?? 'pending',
+                reason: item.reason ?? 'Tidak ada alasan',
+              ),
             ),
-          ),
-          
-          // Bagian bawah card (tombol aksi)
-          if ((item.checkInLocation != null && item.checkInLocation!.isNotEmpty) || (item.fileProof != null && item.fileProof!.isNotEmpty))
-            Container(
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade200))),
-              child: Material(
-                color: Colors.grey.shade50,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      // Tombol Lihat Lokasi (muncul jika ada lokasi)
-                      if (item.checkInLocation != null && item.checkInLocation!.isNotEmpty)
-                        TextButton.icon(
-                          onPressed: () => _showLocationMap(item.checkInLocation!, 'Lokasi Pengajuan'),
-                          icon: Icon(Icons.map_outlined, size: 16, color: Colors.grey.shade700),
-                          label: Text('Lihat Lokasi', style: PoppinsTextStyle.medium.copyWith(color: Colors.grey.shade700, fontSize: 12)),
-                        ),
-                      
-                      // Tombol Lihat Lampiran (muncul jika ada file)
-                      if (item.fileProof != null && item.fileProof!.isNotEmpty)
-                        TextButton.icon(
-                          onPressed: () => _launchFile(item.fileProof),
-                          icon: Icon(Icons.attachment_rounded, size: 16, color: Colors.grey.shade700),
-                          label: Text('Lihat Lampiran', style: PoppinsTextStyle.medium.copyWith(color: Colors.grey.shade700, fontSize: 12)),
-                        ),
-                    ],
+            if ((item.checkInLocation != null &&
+                    item.checkInLocation!.isNotEmpty) ||
+                (item.fileProof != null && item.fileProof!.isNotEmpty))
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: Colors.grey.shade200),
+                  ),
+                ),
+                child: Material(
+                  color: Colors.grey.shade50,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        if (item.checkInLocation != null &&
+                            item.checkInLocation!.isNotEmpty)
+                          TextButton.icon(
+                            onPressed: () => _showLocationMap(
+                                item.checkInLocation!, 'Lokasi Pengajuan'),
+                            icon: Icon(Icons.map_outlined,
+                                size: 16, color: Colors.grey.shade700),
+                            label: Text('Lihat Lokasi',
+                                style: PoppinsTextStyle.medium.copyWith(
+                                    color: Colors.grey.shade700, fontSize: 12)),
+                          ),
+                        if (item.fileProof != null && item.fileProof!.isNotEmpty)
+                          TextButton.icon(
+                            onPressed: () => _launchFile(item.fileProof),
+                            icon: Icon(Icons.attachment_rounded,
+                                size: 16, color: Colors.grey.shade700),
+                            label: Text('Lihat Lampiran',
+                                style: PoppinsTextStyle.medium.copyWith(
+                                    color: Colors.grey.shade700, fontSize: 12)),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
+
   Color _getApprovalColor(String status) {
     switch (status) {
       case 'pending':
@@ -422,6 +461,7 @@ Widget _buildLeaveCard(HistoryItem item) {
     String? location,
     IconData icon,
     Color color,
+    String? status,
   ) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -450,16 +490,13 @@ Widget _buildLeaveCard(HistoryItem item) {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(
-                      Icons.access_time_rounded,
-                      size: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                    Icon(Icons.access_time_rounded,
+                        size: 14, color: Colors.grey.shade600),
                     const SizedBox(width: 4),
                     Text(
                       time != null
                           ? DateFormat('HH:mm').format(time.toLocal())
-                          : 'Belum Absen',
+                          : (status == 'Alpha' ? 'Tidak Hadir' : 'Belum Absen'),
                       style: PoppinsTextStyle.regular.copyWith(
                         color: time != null ? Colors.black87 : Colors.grey[500],
                         fontSize: 13,
@@ -467,21 +504,91 @@ Widget _buildLeaveCard(HistoryItem item) {
                     ),
                   ],
                 ),
+                // Tampilkan status chip
+                if (status != null && status.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildStatusChip(status),
+                ],
               ],
             ),
           ),
           if (time != null && location != null && location.isNotEmpty)
             IconButton(
-              icon: Icon(
-                Icons.map_rounded,
-                color: Theme.of(context).primaryColor,
-                size: 20,
-              ),
+              icon: Icon(Icons.map_rounded,
+                  color: Theme.of(context).primaryColor, size: 20),
               onPressed: () => _showLocationMap(location, 'Lokasi $title'),
             ),
         ],
       ),
     );
+  }
+
+  Widget _buildStatusChip(String status) {
+    Color chipColor = _getStatusColor(status);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: chipColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: chipColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            status,
+            style: PoppinsTextStyle.semiBold.copyWith(
+              fontSize: 12,
+              color: chipColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    final s = status.toLowerCase();
+    
+    // Telat/Late
+    if (s.contains('telat') || s.contains('late')) {
+      return const Color(0xFFF59E0B); // Orange
+    }
+    
+    // Overtime
+    if (s.contains('overtime') || s.contains('lembur')) {
+      return const Color(0xFF7C3AED); // Purple
+    }
+    
+    // Pulang Lebih Awal
+    if (s.contains('pulang lebih awal') || s.contains('early')) {
+      return const Color(0xFFEF4444); // Red
+    }
+    
+    // Tepat Waktu / On Time
+    if (s.contains('tepat waktu') || 
+        s.contains('ontime') || 
+        s.contains('on time') ||
+        s.contains('hadir')) {
+      return const Color(0xFF10B981); // Green
+    }
+    
+    // Alpha
+    if (s.contains('alpha')) {
+      return const Color(0xFF94A3B8); // Gray
+    }
+    
+    // Default
+    return const Color(0xFF64748B);
   }
 
   Widget _buildApprovalItemRow({
@@ -506,84 +613,76 @@ Widget _buildLeaveCard(HistoryItem item) {
         statusText = 'N/A';
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                label.toUpperCase(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
                 style: PoppinsTextStyle.bold.copyWith(
                   color: iconColor,
                   fontSize: 15,
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                statusText,
+                style: PoppinsTextStyle.semiBold.copyWith(
+                  color: iconColor,
+                  fontSize: 12,
                 ),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  statusText,
-                  style: PoppinsTextStyle.semiBold.copyWith(
-                    color: iconColor,
-                    fontSize: 12,
-                  ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.description_rounded,
+                  size: 16, color: Colors.grey.shade600),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Alasan',
+                      style: PoppinsTextStyle.medium.copyWith(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      reason,
+                      style: PoppinsTextStyle.regular.copyWith(
+                        fontSize: 13,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.description_rounded,
-                  size: 16,
-                  color: Colors.grey.shade600,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Alasan',
-                        style: PoppinsTextStyle.medium.copyWith(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        reason,
-                        style: PoppinsTextStyle.regular.copyWith(
-                          fontSize: 13,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
