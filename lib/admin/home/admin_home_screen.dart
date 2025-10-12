@@ -182,7 +182,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       return;
     }
 
-    // Gabungkan base URL dengan path file dari server
     final url = Uri.parse('http://10.0.2.2:8000/storage/$filePath');
 
     if (await canLaunchUrl(url)) {
@@ -499,7 +498,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 1.2,
+          childAspectRatio: 1.3,
           children: [
             _buildActionCard(
               icon: Icons.receipt_long,
@@ -545,15 +544,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               title: 'Riwayat Absensi',
               subtitle: 'Absen per karyawan',
               onTap: () async {
-                // Arahkan ke halaman DAFTAR KARYAWAN
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder:
-                        (context) => const AdminListAbsensiKaryawanScreen(),
+                    builder: (context) =>
+                        const AdminListAbsensiKaryawanScreen(),
                   ),
                 );
-                // Setelah kembali, muat ulang data dashboard
                 _loadData();
               },
             ),
@@ -574,7 +571,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -592,26 +589,26 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: iconColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: iconColor, size: 28),
+              child: Icon(icon, color: iconColor, size: 24),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               title,
               style: PoppinsTextStyle.bold.copyWith(
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.black,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               subtitle,
               style: PoppinsTextStyle.regular.copyWith(
-                fontSize: 11,
+                fontSize: 10,
                 color: Colors.grey[600],
               ),
               maxLines: 2,
@@ -794,7 +791,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             ),
           ),
 
-          // Tombol untuk melihat lampiran (hanya muncul jika ada file)
           if (item.fileProof != null && item.fileProof!.isNotEmpty) ...[
             const SizedBox(height: 16),
             TextButton.icon(
@@ -898,6 +894,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   contentPadding: EdgeInsets.zero,
                   content: Container(
                     width: MediaQuery.of(context).size.width * 0.9,
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
@@ -970,10 +969,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           ),
                         ),
 
-                        // Form Content
-                        Container(
-                          padding: const EdgeInsets.all(24),
+                        // Form Content with Scrollable
+                        Flexible(
                           child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1171,6 +1170,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: AppColor.primaryColor, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
             ),
           ),
         ),

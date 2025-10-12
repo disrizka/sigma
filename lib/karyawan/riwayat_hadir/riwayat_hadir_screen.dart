@@ -10,18 +10,20 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geocoding/geocoding.dart';
 
-// --- MODEL DATA GABUNGAN ---
+// === MODEL DATA ===
 class HistoryItem {
   final int id;
   final String itemType; // 'attendance' atau 'leave_request'
 
-  // Untuk attendance
+  // Attendance
   final DateTime? checkInTime;
   final DateTime? checkOutTime;
   final String? checkInLocation;
   final String? checkOutLocation;
+  final String? statusCheckIn; // <- ditambahkan
+  final String? statusCheckOut; // <- ditambahkan
 
-  // Untuk leave_request
+  // Leave Request
   final String? leaveType;
   final String reason;
   final String? status;
@@ -35,6 +37,8 @@ class HistoryItem {
     this.checkOutTime,
     this.checkInLocation,
     this.checkOutLocation,
+    this.statusCheckIn,
+    this.statusCheckOut,
     this.leaveType,
     this.reason = "Tidak ada alasan",
     this.status,
@@ -43,7 +47,6 @@ class HistoryItem {
 
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
     bool isAttendance = json.containsKey('date');
-
     if (isAttendance) {
       return HistoryItem(
         id: json['id'],
@@ -58,26 +61,24 @@ class HistoryItem {
                 : null,
         checkInLocation: json['check_in_location'],
         checkOutLocation: json['check_out_location'],
-        createdAt: DateTime.parse(
-          json['date'],
-        ), // Gunakan 'date' untuk grouping
+        statusCheckIn: json['status_check_in'], // parse dari json
+        statusCheckOut: json['status_check_out'], // parse dari json
+        createdAt: DateTime.parse(json['date']),
       );
     } else {
-      // Ini adalah leave_request
       return HistoryItem(
         id: json['id'],
         itemType: 'leave_request',
         leaveType: json['type'],
         reason: json['reason'] ?? "Tidak ada alasan",
         status: json['status'],
-        createdAt: DateTime.parse(
-          json['start_date'],
-        ), // Gunakan 'start_date' untuk grouping
+        createdAt: DateTime.parse(json['start_date']),
       );
     }
   }
 }
 
+// === HISTORY SCREEN ===
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
@@ -105,11 +106,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _loadHistory() async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
-    final token = await _storage.read(key: 'auth_token');
+    setState(() => _isLoading = true);
 
+    final token = await _storage.read(key: 'auth_token');
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/history'),
@@ -130,10 +129,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     } catch (e) {
       _showSnackBar('Terjadi kesalahan koneksi: $e', isError: true);
     } finally {
-      if (mounted)
-        setState(() {
-          _isLoading = false;
-        });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -144,16 +140,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
         'EEEE, d MMMM yyyy',
         'id_ID',
       ).format(item.createdAt.toLocal());
-      if (grouped[dateStr] == null) {
-        grouped[dateStr] = [];
-      }
+      grouped.putIfAbsent(dateStr, () => []);
       grouped[dateStr]!.add(item);
     }
-    if (mounted) {
-      setState(() {
-        _groupedHistory = grouped;
-      });
-    }
+    if (mounted) setState(() => _groupedHistory = grouped);
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -166,6 +156,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  // === UI ===
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -257,7 +248,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ],
                                 ),
                               ),
-                              ...items.map((item) => _buildHistoryItem(item)),
+                              ...items.map(_buildHistoryItem),
                             ],
                           );
                         },
@@ -269,14 +260,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildHistoryItem(HistoryItem item) {
-    if (item.itemType == 'attendance') {
-      return _buildAttendanceCard(item);
-    } else if (item.itemType == 'leave_request') {
-      return _buildLeaveCard(item);
-    }
-    return const SizedBox.shrink();
-  }
+  Widget _buildHistoryItem(HistoryItem item) =>
+      item.itemType == 'attendance'
+          ? _buildAttendanceCard(item)
+          : _buildLeaveCard(item);
 
   Widget _buildAttendanceCard(HistoryItem item) {
     final isToday = DateUtils.isSameDay(
@@ -286,11 +273,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.white, Colors.white.withOpacity(0.95)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -310,32 +293,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               label: 'Absen Masuk',
               time: _formatTime(item.checkInTime),
               address: item.checkInLocation,
+              status: item.statusCheckIn, // <-- kirim status checkin
             ),
             if (item.checkOutTime != null ||
                 (item.checkOutTime == null && !isToday))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: Container(
-                        height: 1,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              Colors.grey.withOpacity(0.3),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                  ],
-                ),
-              ),
+              const Divider(height: 32),
             if (item.checkOutTime != null)
               _buildItemRow(
                 icon: Icons.logout_rounded,
@@ -343,6 +305,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 label: 'Absen Keluar',
                 time: _formatTime(item.checkOutTime),
                 address: item.checkOutLocation,
+                status: item.statusCheckOut, // <-- kirim status checkout
               ),
             if (item.checkOutTime == null && !isToday)
               _buildItemRow(
@@ -362,11 +325,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.white, Colors.white.withOpacity(0.95)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -383,9 +342,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               item.leaveType == 'izin'
                   ? Icons.info_outline_rounded
                   : Icons.calendar_today_rounded,
-          iconColor: _getApprovalColor(item.status!),
+          iconColor: _getApprovalColor(item.status ?? ''),
           label: item.leaveType == 'izin' ? 'Pengajuan Izin' : 'Pengajuan Cuti',
-          approvalStatus: item.status!,
+          approvalStatus: item.status ?? 'pending',
           reason: item.reason,
         ),
       ),
@@ -406,15 +365,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<String> _getAddressFromCoords(String? coords) async {
-    if (coords == null || !coords.contains(',') || coords == "-") return "-";
+    if (coords == null || !coords.contains(',')) return "-";
     try {
       final parts = coords.split(',');
       final lat = double.parse(parts[0]);
       final lon = double.parse(parts[1]);
-      List<Placemark> placemarks = await placemarkFromCoordinates(lat, lon);
-      Placemark place = placemarks[0];
+      final placemarks = await placemarkFromCoordinates(lat, lon);
+      final place = placemarks[0];
       return "${place.street}, ${place.locality}";
-    } catch (e) {
+    } catch (_) {
       return "Gagal memuat alamat";
     }
   }
@@ -425,6 +384,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     required String label,
     required String time,
     required String? address,
+    String? status, // <-- parameter status tambahan
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,16 +393,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                iconColor.withOpacity(0.15),
-                iconColor.withOpacity(0.08),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: iconColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: iconColor.withOpacity(0.2), width: 1),
           ),
           child: Icon(icon, color: iconColor, size: 22),
         ),
@@ -456,16 +408,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 style: PoppinsTextStyle.semiBold.copyWith(
                   fontSize: 15,
                   color: const Color(0xFF1E293B),
-                  letterSpacing: 0.2,
                 ),
               ),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.access_time_rounded,
                     size: 14,
-                    color: const Color(0xFF64748B),
+                    color: Color(0xFF64748B),
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -477,6 +428,40 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                 ],
               ),
+              if (status != null && status.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(status).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(status),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        status,
+                        style: PoppinsTextStyle.semiBold.copyWith(
+                          fontSize: 13,
+                          color: _getStatusColor(status),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (address != null && address != "-") ...[
                 const SizedBox(height: 6),
                 FutureBuilder<String>(
@@ -485,10 +470,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.location_on_rounded,
                           size: 14,
-                          color: const Color(0xFF94A3B8),
+                          color: Color(0xFF94A3B8),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -513,6 +498,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       ],
     );
+  }
+
+  Color _getStatusColor(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('telat') || s.contains('late')) return Colors.orange;
+    if (s.contains('overtime')) return const Color(0xFF7C3AED); // ungu-ish
+    if (s.contains('hadir') ||
+        s.contains('on time') ||
+        s.contains('ontime') ||
+        s.contains('tepat'))
+      return Colors.green;
+    // default
+    return const Color(0xFF94A3B8);
   }
 
   Widget _buildApprovalItemRow({
@@ -544,16 +542,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                iconColor.withOpacity(0.15),
-                iconColor.withOpacity(0.08),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: iconColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: iconColor.withOpacity(0.2), width: 1),
           ),
           child: Icon(icon, color: iconColor, size: 22),
         ),
@@ -570,35 +560,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       style: PoppinsTextStyle.semiBold.copyWith(
                         fontSize: 15,
                         color: const Color(0xFF1E293B),
-                        letterSpacing: 0.2,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          iconColor.withOpacity(0.15),
-                          iconColor.withOpacity(0.08),
-                        ],
-                      ),
+                      color: iconColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: iconColor.withOpacity(0.3),
-                        width: 1,
-                      ),
                     ),
                     child: Text(
                       statusText,
                       style: PoppinsTextStyle.semiBold.copyWith(
                         fontSize: 11,
                         color: iconColor,
-                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
@@ -641,10 +619,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  String _formatTime(DateTime? dt) {
-    if (dt == null) return "Belum Absen";
-    return DateFormat('HH:mm', 'id_ID').format(dt.toLocal());
-  }
+  String _formatTime(DateTime? dt) =>
+      dt == null ? "Belum Absen" : DateFormat('HH:mm', 'id_ID').format(dt);
 
   Widget _buildEmptyState() {
     return Center(
@@ -673,7 +649,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Yukk, mulai absensi mu hari ini!",
+            "Yuk mulai absensimu hari ini!",
             style: PoppinsTextStyle.regular.copyWith(
               fontSize: 14,
               color: const Color(0xFF64748B),
@@ -688,7 +664,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Image.asset(AppImage.history, width: 145, height: 93),
           const SizedBox(width: 12),
@@ -711,7 +686,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "Tetap semangat, dan jangan lupa untuk selalu tinggalkan jejak absen mu disini",
+                    "Tetap semangat, dan jangan lupa untuk selalu tinggalkan jejak absenmu disini.",
                     style: PoppinsTextStyle.regular.copyWith(
                       fontSize: 10,
                       color: Colors.white,
