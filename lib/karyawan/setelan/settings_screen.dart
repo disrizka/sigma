@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sigma/admin/auth/login/login_screen.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/karyawan/main/bottom_navigation_bar.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
@@ -32,7 +33,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _storage = const FlutterSecureStorage();
-  final String _baseUrl = 'http://10.0.2.2:8000/api';
+  final String _baseUrl = '$baseUrl/api';
 
   String name = "Memuat...";
   String nik = "...";

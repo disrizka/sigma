@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:sigma/admin/absensi-karyawan/admin_absensi_karyawan_screen.dart';
+import 'package:pdfx/pdfx.dart';
 import 'package:sigma/admin/absensi-karyawan/admin_absensi_list.dart';
 import 'package:sigma/admin/auth/login/login_screen.dart';
 import 'package:sigma/admin/detail-gaji/admin_gaji_karyawan_screen.dart';
 import 'package:sigma/admin/detail-karyawan/admin_detail_karyawan_screen.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:sigma/utils/app_image.dart';
@@ -12,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 
 // --- MODEL UNTUK DATA PENGAJUAN ---
 class PengajuanItem {
@@ -55,7 +57,7 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final _storage = const FlutterSecureStorage();
-  final String _baseUrl = 'http://10.0.2.2:8000/api';
+  final String _baseUrl = '$baseUrl/api';
 
   bool _isLoading = true;
   List<PengajuanItem> _pendingApprovals = [];
@@ -176,20 +178,89 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  Future<void> _launchFile(String? filePath) async {
-    if (filePath == null || filePath.isEmpty) {
-      _showError("File tidak ditemukan.");
+
+
+Future<void> _launchFile(String? filePath) async {
+  if (filePath == null || filePath.isEmpty) {
+    _showError("File tidak ditemukan.");
+    return;
+  }
+
+  final storageBase = baseUrl.replaceAll(RegExp(r'/api$'), '');
+  String cleanPath = filePath.replaceFirst(RegExp(r'^/'), '').replaceFirst(RegExp(r'^storage/'), '');
+  final pdfUrl = '$storageBase/storage/$cleanPath';
+
+  final shouldOpen = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Buka File'),
+      content: const Text("Ingin membuka lampiran PDF?"),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Buka')),
+      ],
+    ),
+  );
+
+  if (shouldOpen != true) return;
+
+  try {
+    final response = await http.get(Uri.parse(pdfUrl));
+
+    if (response.statusCode != 200) {
+      _showError("Gagal mengambil file.");
       return;
     }
 
-    final url = Uri.parse('http://10.0.2.2:8000/storage/$filePath');
+    final bytes = response.bodyBytes;
 
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      _showError("Tidak bisa membuka file: $url");
-    }
+
+    final doc = PdfDocument.openData(bytes);
+
+ Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (_) => Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        title: const Text(
+          "Preview File",
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: Container(
+        color: Colors.grey[200],
+        child: PdfViewPinch(
+          controller: PdfControllerPinch(document: doc),
+        ),
+      ),
+    ),
+  ),
+);
+  } catch (e) {
+    _showError("Terjadi kesalahan: $e");
   }
+}
+
+
 
   Future<void> _logout() async {
     final navigator = Navigator.of(context);
@@ -278,6 +349,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             ],
           ),
     );
+    
   }
 
   void _showError(String message) {
@@ -547,8 +619,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        const AdminListAbsensiKaryawanScreen(),
+                    builder:
+                        (context) => const AdminListAbsensiKaryawanScreen(),
                   ),
                 );
                 _loadData();
@@ -794,7 +866,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           if (item.fileProof != null && item.fileProof!.isNotEmpty) ...[
             const SizedBox(height: 16),
             TextButton.icon(
-              onPressed: () => _launchFile(item.fileProof),
+              onPressed:
+                  (item.fileProof == null || item.fileProof!.isEmpty)
+                      ? null
+                      : () => _launchFile(item.fileProof),
               icon: Icon(
                 Icons.attachment,
                 size: 16,

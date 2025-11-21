@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:sigma/utils/app_color.dart';
 
@@ -38,7 +39,7 @@ class AdminDataKaryawanScreen extends StatefulWidget {
 
 class _AdminDataKaryawanScreenState extends State<AdminDataKaryawanScreen> {
   final _storage = const FlutterSecureStorage();
-  final String _baseUrl = 'http://10.0.2.2:8000/api';
+  final String _baseUrl = '$baseUrl/api';
   bool _isLoading = true;
   List<UserModel> _employees = [];
 

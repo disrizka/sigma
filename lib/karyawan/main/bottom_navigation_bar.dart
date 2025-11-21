@@ -15,7 +15,7 @@ class _BottomBarState extends State<BottomBar> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const HomeScreen(),
+    HomeScreen(),
     const HistoryScreen(),
     SettingsScreen(),
   ];

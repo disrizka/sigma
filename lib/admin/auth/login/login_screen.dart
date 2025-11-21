@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sigma/admin/home/admin_home_screen.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/karyawan/main/bottom_navigation_bar.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
@@ -39,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final url = Uri.parse('http://10.0.2.2:8000/api/login');
+    final url = Uri.parse('$baseUrl/api/login');
 
     try {
       final response = await http

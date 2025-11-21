@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:sigma/admin/auth/login/login_screen.dart';
 import 'package:sigma/karyawan/check-in/checkin_screen.dart';
@@ -11,6 +14,7 @@ import 'package:sigma/karyawan/slip-gaji/slipgaji_screen.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:sigma/utils/app_image.dart';
+import 'package:sigma/api/api.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -20,14 +24,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final storage = const FlutterSecureStorage();
+
   String formattedTime = '';
   String formattedDate = '';
   Timer? timer;
+
+  // Data user
+  Map<String, dynamic>? userData;
+  bool isLoadingUser = true;
+
+  // BASE URL dari api.dart
+  final String _baseUrl = '$baseUrl/api';
 
   @override
   void initState() {
     super.initState();
     updateTime();
+    getUser();
     timer = Timer.periodic(
       const Duration(seconds: 1),
       (Timer t) => updateTime(),
@@ -38,6 +52,66 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     timer?.cancel();
     super.dispose();
+  }
+
+  Future<void> getUser() async {
+    setState(() {
+      isLoadingUser = true;
+    });
+
+    try {
+      final token = await storage.read(key: 'auth_token');
+
+      print('Token: $token'); // Debug
+
+      if (token == null || token.isEmpty) {
+        print('Token tidak ditemukan');
+        setState(() {
+          isLoadingUser = false;
+          userData = null;
+        });
+        return;
+      }
+
+      final url = Uri.parse('$_baseUrl/user');
+      print('Fetching from: $url'); // Debug
+
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      print('Status Code: ${response.statusCode}'); // Debug
+      print('Response Body: ${response.body}'); // Debug
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+
+        setState(() {
+          userData = decoded['data'] ?? decoded;
+          isLoadingUser = false;
+        });
+
+        print('User Data: $userData'); // Debug
+      } else {
+        print('Error: ${response.statusCode} - ${response.body}');
+        setState(() {
+          isLoadingUser = false;
+          userData = null;
+        });
+      }
+    } catch (e) {
+      print("Error getUser: $e");
+      setState(() {
+        isLoadingUser = false;
+        userData = null;
+      });
+    }
   }
 
   void updateTime() {
@@ -74,75 +148,121 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            _buildStatusCard(),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildSearchBox(),
-                  const SizedBox(height: 24),
-                  _buildLiveAttendance(formattedTime, formattedDate),
-                  const SizedBox(height: 16),
-                  _buildCheckButtons(),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Fitur',
-                style: PoppinsTextStyle.bold.copyWith(
-                  color: Colors.black,
-                  fontSize: 18,
+      body: RefreshIndicator(
+        onRefresh: getUser,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              _buildStatusCard(),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildSearchBox(),
+                    const SizedBox(height: 24),
+                    _buildLiveAttendance(formattedTime, formattedDate),
+                    const SizedBox(height: 16),
+                    _buildCheckButtons(),
+                  ],
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildFeatureItem(
-                    context,
-                    'Slip Gaji',
-                    AppImage.fitur1,
-                    SlipGajiScreen(),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Fitur',
+                  style: PoppinsTextStyle.bold.copyWith(
+                    color: Colors.black,
+                    fontSize: 18,
                   ),
-                  _buildFeatureItem(
-                    context,
-                    'Pengajuan\nIzin',
-                    AppImage.fitur2,
-                    IzinScreen(),
-                  ),
-                  _buildFeatureItem(
-                    context,
-                    'Pengajuan\nCuti',
-                    AppImage.fitur3,
-                    CutiScreen(),
-                  ),
-                  _buildFeatureItem(
-                    context,
-                    'Riwayat\nKehadiran',
-                    AppImage.fitur4,
-                    HistoryScreen(),
-                  ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-          ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildFeatureItem(
+                      context,
+                      'Slip Gaji',
+                      AppImage.fitur1,
+                      SlipGajiScreen(),
+                    ),
+                    _buildFeatureItem(
+                      context,
+                      'Pengajuan\nIzin',
+                      AppImage.fitur2,
+                      IzinScreen(),
+                    ),
+                    _buildFeatureItem(
+                      context,
+                      'Pengajuan\nCuti',
+                      AppImage.fitur3,
+                      CutiScreen(),
+                    ),
+                    _buildFeatureItem(
+                      context,
+                      'Riwayat\nKehadiran',
+                      AppImage.fitur4,
+                      const HistoryScreen(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildHeader() {
+    // Loading state
+    if (isLoadingUser) {
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(16),
+        height: 100,
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Error state
+    if (userData == null || userData!.isEmpty) {
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Gagal memuat data pengguna",
+              style: TextStyle(color: Colors.red, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: getUser,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Success state
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
@@ -150,25 +270,32 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Kiri: Nama dan Jabatan
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Halo, Lily',
-                style: PoppinsTextStyle.bold.copyWith(
-                  color: Colors.black,
-                  fontSize: 24,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Halo, ${userData!['name'] ?? userData!['nama'] ?? 'User'}',
+                  style: PoppinsTextStyle.bold.copyWith(
+                    color: Colors.black,
+                    fontSize: 24,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                'Software Engineering',
-                style: PoppinsTextStyle.medium.copyWith(
-                  color: Colors.black,
-                  fontSize: 12,
+                const SizedBox(height: 4),
+                Text(
+                  userData!['jabatan'] ?? userData!['position'] ?? '-',
+                  style: PoppinsTextStyle.medium.copyWith(
+                    color: Colors.black,
+                    fontSize: 12,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+
+          const SizedBox(width: 16),
 
           // Kanan: Status
           Row(
@@ -186,7 +313,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Text(
-                    'Aktif',
+                    userData!['status'] ?? 'status',
                     style: PoppinsTextStyle.medium.copyWith(
                       color: Colors.black,
                       fontSize: 12,
@@ -228,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Flexible(
                   child: Text(
-                    'Rp. 98.000',
+                    'Rp. ${userData?['gaji'] ?? '98.000'}',
                     style: PoppinsTextStyle.bold.copyWith(
                       fontSize: 16,
                       color: Colors.black,
@@ -249,9 +376,21 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildStatusItem(AppImage.boxCuti, 'Cuti', '2'),
-                _buildStatusItem(AppImage.boxIzin, 'Izin', '-'),
-                _buildStatusItem(AppImage.boxAlpa, 'Tidak Hadir', '-'),
+                _buildStatusItem(
+                  AppImage.boxCuti,
+                  'Cuti',
+                  '${userData?['cuti'] ?? '2'}',
+                ),
+                _buildStatusItem(
+                  AppImage.boxIzin,
+                  'Izin',
+                  '${userData?['izin'] ?? '-'}',
+                ),
+                _buildStatusItem(
+                  AppImage.boxAlpa,
+                  'Tidak Hadir',
+                  '${userData?['alpha'] ?? userData?['alpa'] ?? '-'}',
+                ),
               ],
             ),
           ),
@@ -272,6 +411,7 @@ class _HomeScreenState extends State<HomeScreen> {
             fontSize: 10,
             color: Colors.black54,
           ),
+          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 2),
         Text(
@@ -422,6 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             child: Text(
               "Absen Masuk",
@@ -442,6 +583,7 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             child: Text(
               "Absen Pulang",

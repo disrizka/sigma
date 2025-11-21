@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:http/http.dart' as http;
@@ -19,7 +20,7 @@ class CheckinScreen extends StatefulWidget {
 class _CheckinScreenState extends State<CheckinScreen> {
   final Completer<GoogleMapController> _controller = Completer<GoogleMapController>();
   final _storage = const FlutterSecureStorage();
-  final String _baseUrl = 'http://10.0.2.2:8000/api/karyawan';
+  final String _baseUrl = '$baseUrl/api/karyawan';
   
   bool _isLoading = true;
   bool _isSubmitting = false; // Untuk loading tombol

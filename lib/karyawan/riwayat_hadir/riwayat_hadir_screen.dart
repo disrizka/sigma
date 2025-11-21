@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/karyawan/main/bottom_navigation_bar.dart';
+import 'package:sigma/models/riwayat_model.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:sigma/utils/app_image.dart';
@@ -10,75 +12,6 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geocoding/geocoding.dart';
 
-// === MODEL DATA ===
-class HistoryItem {
-  final int id;
-  final String itemType; // 'attendance' atau 'leave_request'
-
-  // Attendance
-  final DateTime? checkInTime;
-  final DateTime? checkOutTime;
-  final String? checkInLocation;
-  final String? checkOutLocation;
-  final String? statusCheckIn; // <- ditambahkan
-  final String? statusCheckOut; // <- ditambahkan
-
-  // Leave Request
-  final String? leaveType;
-  final String reason;
-  final String? status;
-
-  final DateTime createdAt;
-
-  HistoryItem({
-    required this.id,
-    required this.itemType,
-    this.checkInTime,
-    this.checkOutTime,
-    this.checkInLocation,
-    this.checkOutLocation,
-    this.statusCheckIn,
-    this.statusCheckOut,
-    this.leaveType,
-    this.reason = "Tidak ada alasan",
-    this.status,
-    required this.createdAt,
-  });
-
-  factory HistoryItem.fromJson(Map<String, dynamic> json) {
-    bool isAttendance = json.containsKey('date');
-    if (isAttendance) {
-      return HistoryItem(
-        id: json['id'],
-        itemType: 'attendance',
-        checkInTime:
-            json['check_in_time'] != null
-                ? DateTime.parse(json['check_in_time'])
-                : null,
-        checkOutTime:
-            json['check_out_time'] != null
-                ? DateTime.parse(json['check_out_time'])
-                : null,
-        checkInLocation: json['check_in_location'],
-        checkOutLocation: json['check_out_location'],
-        statusCheckIn: json['status_check_in'], // parse dari json
-        statusCheckOut: json['status_check_out'], // parse dari json
-        createdAt: DateTime.parse(json['date']),
-      );
-    } else {
-      return HistoryItem(
-        id: json['id'],
-        itemType: 'leave_request',
-        leaveType: json['type'],
-        reason: json['reason'] ?? "Tidak ada alasan",
-        status: json['status'],
-        createdAt: DateTime.parse(json['start_date']),
-      );
-    }
-  }
-}
-
-// === HISTORY SCREEN ===
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
@@ -88,7 +21,11 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final _storage = const FlutterSecureStorage();
-  final String _baseUrl = 'http://10.0.2.2:8000/api/karyawan';
+  final String _baseUrl = '$baseUrl/api/karyawan';
+  String _formatDate(DateTime? dt) =>
+      dt == null ? '-' : DateFormat('d MMM yyyy', 'id_ID').format(dt);
+  String _formatDateTime(DateTime dt) =>
+      DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(dt.toLocal());
 
   bool _isLoading = true;
   Map<String, List<HistoryItem>> _groupedHistory = {};
@@ -293,7 +230,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               label: 'Absen Masuk',
               time: _formatTime(item.checkInTime),
               address: item.checkInLocation,
-              status: item.statusCheckIn, // <-- kirim status checkin
+              status: item.statusCheckIn,
             ),
             if (item.checkOutTime != null ||
                 (item.checkOutTime == null && !isToday))
@@ -305,7 +242,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 label: 'Absen Keluar',
                 time: _formatTime(item.checkOutTime),
                 address: item.checkOutLocation,
-                status: item.statusCheckOut, // <-- kirim status checkout
+                status: item.statusCheckOut,
               ),
             if (item.checkOutTime == null && !isToday)
               _buildItemRow(
@@ -346,6 +283,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
           label: item.leaveType == 'izin' ? 'Pengajuan Izin' : 'Pengajuan Cuti',
           approvalStatus: item.status ?? 'pending',
           reason: item.reason,
+          startDate: item.startDate,
+          endDate: item.endDate,
+          createdAt: item.createdAt,
+          fileProof: item.fileProof,
         ),
       ),
     );
@@ -519,7 +460,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     required String label,
     required String approvalStatus,
     required String reason,
+    required DateTime? startDate,
+    required DateTime? endDate,
+    required DateTime createdAt,
+    required String? fileProof, // Path file bukti dari database
   }) {
+    // Helper formats (Asumsi sudah ada di scope class)
+    String _formatDate(DateTime? dt) =>
+        dt == null ? '-' : DateFormat('d MMM yyyy', 'id_ID').format(dt);
+    String _formatDateTime(DateTime dt) =>
+        DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(dt.toLocal());
+
+    // Logic untuk Status Text
     String statusText;
     switch (approvalStatus) {
       case 'pending':
@@ -535,9 +487,72 @@ class _HistoryScreenState extends State<HistoryScreen> {
         statusText = 'Tidak Diketahui';
     }
 
+    // Format periode cuti/izin
+    final dateRange =
+        (startDate != null && endDate != null)
+            ? '${_formatDate(startDate)} - ${_formatDate(endDate)}'
+            : (startDate != null ? _formatDate(startDate) : '-');
+
+    // --- Widget Aksi File Bukti ---
+    Widget fileActionButton = InkWell(
+      // Logika saat diklik
+      onTap: () {
+        if (fileProof != null && fileProof!.isNotEmpty) {
+          // TODO: IMPLEMENTASI LOGIKA UNTUK MEMBUKA/MENDOWNLOAD FILE
+          // Contoh: Navigator.push(context, MaterialPageRoute(builder: (_) => FileViewerScreen(fileUrl: fileProof)));
+          _showSnackBar(
+            'Mencoba membuka/mengunduh file bukti...',
+            isError: false,
+          );
+        } else {
+          _showSnackBar(
+            'Tidak ada file bukti yang dilampirkan.',
+            isError: true,
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              fileProof != null && fileProof!.isNotEmpty
+                  ? Icons.file_present_rounded
+                  : Icons.info_outline,
+              size: 16,
+              color:
+                  fileProof != null && fileProof!.isNotEmpty
+                      ? const Color(0xFF38B2AC)
+                      : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              fileProof != null && fileProof!.isNotEmpty
+                  ? 'Buka File Bukti'
+                  : 'File Bukti Kosong',
+              style: PoppinsTextStyle.medium.copyWith(
+                fontSize: 12,
+                color:
+                    fileProof != null && fileProof!.isNotEmpty
+                        ? const Color(0xFF38B2AC)
+                        : const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Container Icon Kiri
         Container(
           width: 48,
           height: 48,
@@ -548,10 +563,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           child: Icon(icon, color: iconColor, size: 22),
         ),
         const SizedBox(width: 14),
+        // Detail Kanan
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Row: Label & Status Box
               Row(
                 children: [
                   Expanded(
@@ -582,36 +599,74 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.description_outlined,
-                      size: 14,
-                      color: Color(0xFF64748B),
+
+              // Row: PERIODE CUTI/IZIN
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.date_range_rounded,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Periode: $dateRange',
+                    style: PoppinsTextStyle.medium.copyWith(
+                      fontSize: 13,
+                      color: const Color(0xFF64748B),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        reason,
-                        style: PoppinsTextStyle.regular.copyWith(
-                          fontSize: 12,
-                          color: const Color(0xFF64748B),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.access_time_filled_rounded,
+                    size: 14,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Diajukan: ${_formatDateTime(createdAt)}',
+                    style: PoppinsTextStyle.regular.copyWith(
+                      fontSize: 11,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.format_align_left_rounded,
+                    size: 16,
+                    color: Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      reason,
+                      style: PoppinsTextStyle.regular.copyWith(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              fileActionButton,
             ],
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:http/http.dart' as http;
@@ -72,7 +73,7 @@ class AdminEmployeeHistoryScreen extends StatefulWidget {
 class _AdminEmployeeHistoryScreenState
     extends State<AdminEmployeeHistoryScreen> {
   final _storage = const FlutterSecureStorage();
-  final String _baseUrl = 'http://10.0.2.2:8000';
+  final String _baseUrl = '$baseUrl';
   bool _isLoading = true;
   Map<String, List<HistoryItem>> _groupedHistory = {};
 
