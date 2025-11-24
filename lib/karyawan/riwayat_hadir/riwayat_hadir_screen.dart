@@ -42,14 +42,19 @@ class HistoryItem {
     bool isAttendance = json.containsKey('date');
     return HistoryItem(
       itemType: isAttendance ? 'attendance' : 'leave_request',
-      createdAt: DateTime.parse(isAttendance ? json['date'] : json['start_date']),
-      checkInTime: isAttendance && json['check_in_time'] != null
-          ? DateTime.parse(json['check_in_time'])
-          : null,
-      checkOutTime: isAttendance && json['check_out_time'] != null
-          ? DateTime.parse(json['check_out_time'])
-          : null,
-      checkInLocation: isAttendance ? json['check_in_location'] : json['location'],
+      createdAt: DateTime.parse(
+        isAttendance ? json['date'] : json['start_date'],
+      ),
+      checkInTime:
+          isAttendance && json['check_in_time'] != null
+              ? DateTime.parse(json['check_in_time'])
+              : null,
+      checkOutTime:
+          isAttendance && json['check_out_time'] != null
+              ? DateTime.parse(json['check_out_time'])
+              : null,
+      checkInLocation:
+          isAttendance ? json['check_in_location'] : json['location'],
       checkOutLocation: json['check_out_location'],
       statusCheckIn: json['status_check_in'],
       statusCheckOut: json['status_check_out'],
@@ -57,8 +62,12 @@ class HistoryItem {
       reason: json['reason'],
       status: json['status'],
       fileProof: json['file_proof'],
-      startDate: json['start_date'] != null ? DateTime.parse(json['start_date']) : null,
-      endDate: json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
+      startDate:
+          json['start_date'] != null
+              ? DateTime.parse(json['start_date'])
+              : null,
+      endDate:
+          json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
     );
   }
 }
@@ -83,7 +92,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Map<String, List<HistoryItem>> _groupedHistory = {};
 
   // Variabel untuk month picker
-  String selectedMonth = DateFormat('MMMM yyyy', 'id_ID').format(DateTime.now());
+  String selectedMonth = DateFormat(
+    'MMMM yyyy',
+    'id_ID',
+  ).format(DateTime.now());
   int selectedYear = DateTime.now().year;
   int selectedMonthNum = DateTime.now().month;
 
@@ -105,7 +117,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final token = await _storage.read(key: 'auth_token');
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/history?year=$selectedYear&month=$selectedMonthNum'),
+        Uri.parse(
+          '$_baseUrl/history?year=$selectedYear&month=$selectedMonthNum',
+        ),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -127,15 +141,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  // LOGIKA GROUPING SAMA PERSIS SEPERTI ADMIN
   void _groupHistory(List<HistoryItem> historyList) {
     final grouped = <String, List<HistoryItem>>{};
 
     for (var item in historyList) {
+      // Validasi: hanya tambahkan item yang sesuai dengan bulan dan tahun yang dipilih
+      final itemDate = item.createdAt.toLocal();
+      if (itemDate.year != selectedYear || itemDate.month != selectedMonthNum) {
+        continue; // Skip item yang tidak sesuai dengan periode yang dipilih
+      }
+
       // Gunakan createdAt untuk semua tipe (sudah diatur di model)
-      String dateStr = DateFormat('EEEE, d MMMM yyyy', 'id_ID')
-          .format(item.createdAt.toLocal());
-      
+      String dateStr = DateFormat(
+        'EEEE, d MMMM yyyy',
+        'id_ID',
+      ).format(itemDate);
+
       grouped.putIfAbsent(dateStr, () => []);
       grouped[dateStr]!.add(item);
     }
@@ -155,14 +176,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _pilihBulan() async {
     final List<String> months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
 
-    final List<int> years = List.generate(
-      DateTime.now().year - 2020 + 1,
-      (index) => 2020 + index,
-    ).reversed.toList();
+    final List<int> years =
+        List.generate(
+          DateTime.now().year - 2020 + 1,
+          (index) => 2020 + index,
+        ).reversed.toList();
 
     int tempMonth = selectedMonthNum;
     int tempYear = selectedYear;
@@ -205,17 +237,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       value: tempYear,
                       isExpanded: true,
                       underline: SizedBox(),
-                      icon: Icon(Icons.arrow_drop_down, color: AppColor.primaryColor),
+                      icon: Icon(
+                        Icons.arrow_drop_down,
+                        color: AppColor.primaryColor,
+                      ),
                       style: PoppinsTextStyle.semiBold.copyWith(
                         fontSize: 16,
                         color: AppColor.primaryColor,
                       ),
-                      items: years.map((year) {
-                        return DropdownMenuItem(
-                          value: year,
-                          child: Text('$year'),
-                        );
-                      }).toList(),
+                      items:
+                          years.map((year) {
+                            return DropdownMenuItem(
+                              value: year,
+                              child: Text('$year'),
+                            );
+                          }).toList(),
                       onChanged: (value) {
                         if (value != null) {
                           setModalState(() {
@@ -238,25 +274,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       itemBuilder: (context, index) {
                         final monthNum = index + 1;
                         final isSelected = tempMonth == monthNum;
-                        final isFuture = tempYear == DateTime.now().year &&
+                        final isFuture =
+                            tempYear == DateTime.now().year &&
                             monthNum > DateTime.now().month;
 
                         return InkWell(
-                          onTap: isFuture ? null : () {
-                            setModalState(() {
-                              tempMonth = monthNum;
-                            });
-                          },
+                          onTap:
+                              isFuture
+                                  ? null
+                                  : () {
+                                    setModalState(() {
+                                      tempMonth = monthNum;
+                                    });
+                                  },
                           child: Container(
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColor.primaryColor
-                                  : isFuture ? Colors.grey[200] : Colors.white,
+                              color:
+                                  isSelected
+                                      ? AppColor.primaryColor
+                                      : isFuture
+                                      ? Colors.grey[200]
+                                      : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected
-                                    ? AppColor.primaryColor
-                                    : Colors.grey[300]!,
+                                color:
+                                    isSelected
+                                        ? AppColor.primaryColor
+                                        : Colors.grey[300]!,
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
@@ -265,9 +309,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 months[index].substring(0, 3),
                                 style: PoppinsTextStyle.medium.copyWith(
                                   fontSize: 13,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : isFuture ? Colors.grey[400] : Colors.black87,
+                                  color:
+                                      isSelected
+                                          ? Colors.white
+                                          : isFuture
+                                          ? Colors.grey[400]
+                                          : Colors.black87,
                                 ),
                               ),
                             ),
@@ -351,10 +398,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
             child: const Icon(Icons.arrow_back, color: Colors.black, size: 20),
           ),
-          onPressed: () => Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const BottomBar()),
-          ),
+          onPressed:
+              () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const BottomBar()),
+              ),
         ),
         title: Text(
           'Riwayat Kehadiran',
@@ -378,7 +426,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: GestureDetector(
               onTap: _pilihBulan,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -396,7 +447,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.calendar_month, color: AppColor.primaryColor, size: 20),
+                    Icon(
+                      Icons.calendar_month,
+                      color: AppColor.primaryColor,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       selectedMonth,
@@ -414,52 +469,58 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _groupedHistory.isEmpty
+            child:
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _groupedHistory.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
-                        onRefresh: _loadHistory,
-                        color: AppColor.primaryColor,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                          itemCount: _groupedHistory.keys.length,
-                          itemBuilder: (context, index) {
-                            final date = _groupedHistory.keys.elementAt(index);
-                            final items = _groupedHistory[date]!;
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(4, 20, 4, 12),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 4,
-                                        height: 20,
-                                        decoration: BoxDecoration(
-                                          color: AppColor.primaryColor,
-                                          borderRadius: BorderRadius.circular(2),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        date,
-                                        style: PoppinsTextStyle.bold.copyWith(
-                                          fontSize: 16,
-                                          color: const Color(0xFF2D3748),
-                                          letterSpacing: 0.2,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                      onRefresh: _loadHistory,
+                      color: AppColor.primaryColor,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        itemCount: _groupedHistory.keys.length,
+                        itemBuilder: (context, index) {
+                          final date = _groupedHistory.keys.elementAt(index);
+                          final items = _groupedHistory[date]!;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  4,
+                                  20,
+                                  4,
+                                  12,
                                 ),
-                                ...items.map(_buildHistoryItem),
-                              ],
-                            );
-                          },
-                        ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 4,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: AppColor.primaryColor,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      date,
+                                      style: PoppinsTextStyle.bold.copyWith(
+                                        fontSize: 16,
+                                        color: const Color(0xFF2D3748),
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ...items.map(_buildHistoryItem),
+                            ],
+                          );
+                        },
                       ),
+                    ),
           ),
         ],
       ),
@@ -472,7 +533,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
           : _buildLeaveCard(item);
 
   Widget _buildAttendanceCard(HistoryItem item) {
-    final isToday = DateUtils.isSameDay(item.createdAt.toLocal(), DateTime.now());
+    final isToday = DateUtils.isSameDay(
+      item.createdAt.toLocal(),
+      DateTime.now(),
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -498,7 +562,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               address: item.checkInLocation,
               status: item.statusCheckIn,
             ),
-            if (item.checkOutTime != null || (item.checkOutTime == null && !isToday))
+            if (item.checkOutTime != null ||
+                (item.checkOutTime == null && !isToday))
               const Divider(height: 32),
             if (item.checkOutTime != null)
               _buildItemRow(
@@ -540,9 +605,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Padding(
         padding: const EdgeInsets.all(18.0),
         child: _buildApprovalItemRow(
-          icon: item.leaveType == 'izin'
-              ? Icons.info_outline_rounded
-              : Icons.calendar_today_rounded,
+          icon:
+              item.leaveType == 'izin'
+                  ? Icons.info_outline_rounded
+                  : Icons.calendar_today_rounded,
           iconColor: _getApprovalColor(item.status ?? ''),
           label: item.leaveType == 'izin' ? 'Pengajuan Izin' : 'Pengajuan Cuti',
           approvalStatus: item.status ?? 'pending',
@@ -551,6 +617,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           endDate: item.endDate,
           createdAt: item.createdAt,
           fileProof: item.fileProof,
+          location: item.checkInLocation,
         ),
       ),
     );
@@ -618,7 +685,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF64748B)),
+                  const Icon(
+                    Icons.access_time_rounded,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     time,
@@ -632,7 +703,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
               if (status != null && status.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(status).withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
@@ -668,7 +742,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF94A3B8)),
+                        const Icon(
+                          Icons.location_on_rounded,
+                          size: 14,
+                          color: Color(0xFF94A3B8),
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -698,7 +776,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final s = status.toLowerCase();
     if (s.contains('telat') || s.contains('late')) return Colors.orange;
     if (s.contains('overtime')) return const Color(0xFF7C3AED);
-    if (s.contains('hadir') || s.contains('on time') || s.contains('ontime') || s.contains('tepat'))
+    if (s.contains('hadir') ||
+        s.contains('on time') ||
+        s.contains('ontime') ||
+        s.contains('tepat'))
       return Colors.green;
     return const Color(0xFF94A3B8);
   }
@@ -713,6 +794,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     required DateTime? endDate,
     required DateTime createdAt,
     required String? fileProof,
+    String? location,
   }) {
     String statusText;
     switch (approvalStatus) {
@@ -729,16 +811,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
         statusText = 'Tidak Diketahui';
     }
 
-    final dateRange = (startDate != null && endDate != null)
-        ? '${_formatDate(startDate)} - ${_formatDate(endDate)}'
-        : (startDate != null ? _formatDate(startDate) : '-');
+    final dateRange =
+        (startDate != null && endDate != null)
+            ? '${_formatDate(startDate)} - ${_formatDate(endDate)}'
+            : (startDate != null ? _formatDate(startDate) : '-');
 
     Widget fileActionButton = InkWell(
       onTap: () {
         if (fileProof != null && fileProof.isNotEmpty) {
-          _showSnackBar('Mencoba membuka/mengunduh file bukti...', isError: false);
+          _showSnackBar(
+            'Mencoba membuka/mengunduh file bukti...',
+            isError: false,
+          );
         } else {
-          _showSnackBar('Tidak ada file bukti yang dilampirkan.', isError: true);
+          _showSnackBar(
+            'Tidak ada file bukti yang dilampirkan.',
+            isError: true,
+          );
         }
       },
       child: Container(
@@ -756,9 +845,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ? Icons.file_present_rounded
                   : Icons.info_outline,
               size: 16,
-              color: fileProof != null && fileProof.isNotEmpty
-                  ? const Color(0xFF38B2AC)
-                  : const Color(0xFF94A3B8),
+              color:
+                  fileProof != null && fileProof.isNotEmpty
+                      ? const Color(0xFF38B2AC)
+                      : const Color(0xFF94A3B8),
             ),
             const SizedBox(width: 8),
             Text(
@@ -767,9 +857,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   : 'File Bukti Kosong',
               style: PoppinsTextStyle.medium.copyWith(
                 fontSize: 12,
-                color: fileProof != null && fileProof.isNotEmpty
-                    ? const Color(0xFF38B2AC)
-                    : const Color(0xFF94A3B8),
+                color:
+                    fileProof != null && fileProof.isNotEmpty
+                        ? const Color(0xFF38B2AC)
+                        : const Color(0xFF94A3B8),
               ),
             ),
           ],
@@ -806,7 +897,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: iconColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -824,7 +918,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  const Icon(Icons.date_range_rounded, size: 14, color: Color(0xFF64748B)),
+                  const Icon(
+                    Icons.date_range_rounded,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Periode: $dateRange',
@@ -838,7 +936,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Icon(Icons.access_time_filled_rounded, size: 14, color: Color(0xFF94A3B8)),
+                  const Icon(
+                    Icons.access_time_filled_rounded,
+                    size: 14,
+                    color: Color(0xFF94A3B8),
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Diajukan: ${_formatDateTime(createdAt)}',
@@ -853,7 +955,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.format_align_left_rounded, size: 16, color: Color(0xFF64748B)),
+                  const Icon(
+                    Icons.format_align_left_rounded,
+                    size: 16,
+                    color: Color(0xFF64748B),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -868,6 +974,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                 ],
               ),
+              if (location != null && location != "-") ...[
+                const SizedBox(height: 8),
+                FutureBuilder<String>(
+                  future: _getAddressFromCoords(location),
+                  builder: (context, snapshot) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.location_on_rounded,
+                          size: 16,
+                          color: Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            snapshot.data ?? 'Memuat lokasi...',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: PoppinsTextStyle.regular.copyWith(
+                              fontSize: 12,
+                              color: const Color(0xFF64748B),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 12),
               fileActionButton,
             ],
