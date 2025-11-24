@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 
-class PrivacySecurityScreen extends StatelessWidget {
-  const PrivacySecurityScreen({super.key});
+class HelpScreen extends StatelessWidget {
+  const HelpScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +18,7 @@ class PrivacySecurityScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "Privasi & Keamanan",
+          "Bantuan",
           style: PoppinsTextStyle.bold.copyWith(
             fontSize: 20,
             color: Colors.black,
@@ -31,7 +31,7 @@ class PrivacySecurityScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Privasi dan Keamanan Anda adalah Prioritas Kami",
+              "Butuh bantuan?",
               style: PoppinsTextStyle.bold.copyWith(
                 fontSize: 24,
                 color: Colors.black,
@@ -39,37 +39,51 @@ class PrivacySecurityScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Kami berkomitmen menjaga kerahasiaan dan keamanan data Anda saat menggunakan aplikasi Sigma.",
+              "Kami siap membantu Anda memahami aplikasi Payroll lebih baik.",
               style: PoppinsTextStyle.regular.copyWith(
                 fontSize: 14,
                 color: Colors.grey[700],
               ),
             ),
             const SizedBox(height: 24),
-            _buildInfoCard(
-              title: "Kebijakan Privasi",
+            _buildHelpItem(
+              title: "Login dengan NIK & Password",
               description:
-                  "Kami menghargai privasi Anda. Data Anda disimpan dengan aman "
-                  "dan tidak akan dibagikan kepada pihak ketiga tanpa persetujuan Anda.",
-              icon: Icons.privacy_tip_outlined,
-              iconColor: Colors.blueAccent,
+                  "Masuk menggunakan NIK dan password yang diberikan oleh admin. Anda bisa mengubah password sendiri di menu Profil > Ubah Password.",
+              icon: Icons.login,
+              color: Colors.blueAccent,
             ),
             const SizedBox(height: 16),
-            _buildInfoCard(
-              title: "Keamanan Data",
+            _buildHelpItem(
+              title: "Absensi dengan Geolocation",
               description:
-                  "Semua data Slip gaji dan absensi hanya dapat diakses oleh Anda dan admin. ",
-              icon: Icons.security_outlined,
-              iconColor: Colors.green,
+                  "Lakukan Check In dan Check Out di lokasi kantor atau lokasi yang diizinkan. Pastikan GPS aktif agar absensi tercatat dengan benar.",
+              icon: Icons.location_on,
+              color: Colors.orangeAccent,
             ),
             const SizedBox(height: 16),
-            _buildInfoCard(
-              title: "Kontrol Pengguna",
+            _buildHelpItem(
+              title: "Lihat Slip Gaji",
               description:
-                  "Anda memiliki kendali atas akun Anda. "
-                  "Perbarui password dan akses informasi akun.",
-              icon: Icons.manage_accounts_outlined,
-              iconColor: Colors.orange,
+                  "Cek slip gaji Anda setiap hari melalui aplikasi dengan mudah dan aman.",
+              icon: Icons.receipt_long,
+              color: Colors.teal,
+            ),
+            const SizedBox(height: 16),
+            _buildHelpItem(
+              title: "Lihat Riwayat Absensi",
+              description:
+                  "Cek seluruh riwayat absensi Anda, termasuk jam masuk, jam keluar, dan status izin atau cuti.",
+              icon: Icons.history,
+              color: Colors.green,
+            ),
+            const SizedBox(height: 16),
+            _buildHelpItem(
+              title: "Ajukan Izin / Cuti",
+              description:
+                  "Ajukan izin atau cuti melalui aplikasi dan tunggu persetujuan dari admin.",
+              icon: Icons.event_note,
+              color: Colors.purple,
             ),
           ],
         ),
@@ -77,11 +91,11 @@ class PrivacySecurityScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoCard({
+  Widget _buildHelpItem({
     required String title,
     required String description,
     required IconData icon,
-    required Color iconColor,
+    required Color color,
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -101,8 +115,8 @@ class PrivacySecurityScreen extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: iconColor.withOpacity(0.15),
-            child: Icon(icon, color: iconColor, size: 24),
+            backgroundColor: color.withOpacity(0.15),
+            child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(

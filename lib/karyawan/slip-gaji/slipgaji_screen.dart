@@ -39,20 +39,11 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
     setState(() {
       isLoading = true;
       errorMessage = null;
+      slipGajiData = null; // Reset data sebelumnya
     });
 
     try {
-      // Ambil token dari FlutterSecureStorage
       final token = await _storage.read(key: 'auth_token');
-
-      // Debug semua key yang ada
-      final allKeys = await _storage.readAll();
-
-      print('=== DEBUG FlutterSecureStorage ===');
-      print('All keys: ${allKeys.keys.toList()}');
-      print(
-        'Token: ${token != null ? "${token.substring(0, 20)}..." : "NULL"}',
-      );
 
       if (token == null || token.isEmpty) {
         setState(() {
@@ -62,12 +53,9 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
         return;
       }
 
-      // Gunakan selectedYear dan selectedMonthNum yang sudah ada
       final url = Uri.parse(
         '$_baseUrl/payslip-live/$selectedYear/$selectedMonthNum',
       );
-
-      print('URL: $url');
 
       final response = await http
           .get(
@@ -79,18 +67,17 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
           )
           .timeout(const Duration(seconds: 20));
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
           slipGajiData = data['data'];
           isLoading = false;
+          errorMessage = null;
         });
       } else if (response.statusCode == 404) {
         setState(() {
-          errorMessage = 'Slip gaji untuk periode ini belum dibuat.';
+          slipGajiData = null;
+          errorMessage = 'Slip gaji untuk $selectedMonth belum tersedia.';
           isLoading = false;
         });
       } else if (response.statusCode == 401) {
@@ -113,7 +100,6 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
         }
       }
     } catch (e) {
-      print('Error: $e');
       setState(() {
         errorMessage = 'Terjadi kesalahan: ${e.toString()}';
         isLoading = false;
@@ -227,27 +213,205 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
   }
 
   Future<void> _pilihBulan() async {
-    final picked = await showDatePicker(
+    final List<String> months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+
+    final List<int> years =
+        List.generate(
+          DateTime.now().year - 2020 + 1,
+          (index) => 2020 + index,
+        ).reversed.toList();
+
+    int tempMonth = selectedMonthNum;
+    int tempYear = selectedYear;
+
+    final result = await showModalBottomSheet<Map<String, int>>(
       context: context,
-      initialDate: DateTime(selectedYear, selectedMonthNum),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      locale: const Locale('id', 'ID'),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(primary: AppColor.primaryColor),
-          ),
-          child: child!,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: 350,
+              padding: EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Pilih Periode',
+                        style: PoppinsTextStyle.bold.copyWith(fontSize: 18),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 20),
+
+                  // Year Selector
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColor.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButton<int>(
+                      value: tempYear,
+                      isExpanded: true,
+                      underline: SizedBox(),
+                      icon: Icon(
+                        Icons.arrow_drop_down,
+                        color: AppColor.primaryColor,
+                      ),
+                      style: PoppinsTextStyle.semiBold.copyWith(
+                        fontSize: 16,
+                        color: AppColor.primaryColor,
+                      ),
+                      items:
+                          years.map((year) {
+                            return DropdownMenuItem(
+                              value: year,
+                              child: Text('$year'),
+                            );
+                          }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setModalState(() {
+                            tempYear = value;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  SizedBox(height: 20),
+
+                  // Month Grid
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 2.5,
+                      ),
+                      itemCount: 12,
+                      itemBuilder: (context, index) {
+                        final monthNum = index + 1;
+                        final isSelected = tempMonth == monthNum;
+                        final isFuture =
+                            tempYear == DateTime.now().year &&
+                            monthNum > DateTime.now().month;
+
+                        return InkWell(
+                          onTap:
+                              isFuture
+                                  ? null
+                                  : () {
+                                    setModalState(() {
+                                      tempMonth = monthNum;
+                                    });
+                                  },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color:
+                                  isSelected
+                                      ? AppColor.primaryColor
+                                      : isFuture
+                                      ? Colors.grey[200]
+                                      : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color:
+                                    isSelected
+                                        ? AppColor.primaryColor
+                                        : Colors.grey[300]!,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                months[index].substring(0, 3),
+                                style: PoppinsTextStyle.medium.copyWith(
+                                  fontSize: 13,
+                                  color:
+                                      isSelected
+                                          ? Colors.white
+                                          : isFuture
+                                          ? Colors.grey[400]
+                                          : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(height: 10),
+
+                  // OK Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context, {
+                          'month': tempMonth,
+                          'year': tempYear,
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColor.primaryColor,
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Pilih',
+                        style: PoppinsTextStyle.semiBold.copyWith(
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
 
-    if (picked != null) {
+    if (result != null) {
       setState(() {
-        selectedYear = picked.year;
-        selectedMonthNum = picked.month;
-        selectedMonth = DateFormat('MMMM yyyy', 'id_ID').format(picked);
+        selectedYear = result['year']!;
+        selectedMonthNum = result['month']!;
+        final picked = DateTime(selectedYear, selectedMonthNum);
+        try {
+          selectedMonth = DateFormat('MMMM yyyy', 'id_ID').format(picked);
+        } catch (e) {
+          selectedMonth = DateFormat('MMMM yyyy').format(picked);
+        }
       });
       _loadSlipGaji();
     }
@@ -279,6 +443,8 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
           ),
         ],
       ),
+
+      // Ganti bagian body Scaffold dengan yang ini:
       body:
           isLoading
               ? Center(
@@ -289,23 +455,64 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.grey),
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 80,
+                      color: Colors.grey[400],
+                    ),
                     SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Text(
+                        errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: PoppinsTextStyle.medium.copyWith(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8),
                     Text(
-                      errorMessage!,
+                      'Silakan pilih bulan lain',
                       textAlign: TextAlign.center,
                       style: PoppinsTextStyle.regular.copyWith(
                         fontSize: 14,
-                        color: Colors.grey[600],
+                        color: Colors.grey[500],
                       ),
                     ),
-                    SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _loadSlipGaji,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColor.primaryColor,
-                      ),
-                      child: Text('Coba Lagi'),
+                    SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _pilihBulan,
+                          icon: Icon(Icons.calendar_month, size: 20),
+                          label: Text('Pilih Bulan'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColor.primaryColor,
+                            side: BorderSide(color: AppColor.primaryColor),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: _loadSlipGaji,
+                          icon: Icon(Icons.refresh, size: 20),
+                          label: Text('Coba Lagi'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColor.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -326,25 +533,29 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
                       child: Column(
                         children: [
-                          // Pemilihan bulan
+                          // Pemilihan bulan dengan instruksi lebih jelas
                           GestureDetector(
                             onTap: _pilihBulan,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 8,
+                                vertical: 10,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1,
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    Icons.calendar_today,
+                                    Icons.calendar_month,
                                     color: AppColor.backgroundColor,
-                                    size: 16,
+                                    size: 18,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
@@ -358,9 +569,18 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                                   Icon(
                                     Icons.arrow_drop_down,
                                     color: AppColor.backgroundColor,
+                                    size: 24,
                                   ),
                                 ],
                               ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Ketuk untuk mengubah periode',
+                            style: PoppinsTextStyle.regular.copyWith(
+                              fontSize: 11,
+                              color: AppColor.backgroundColor.withOpacity(0.7),
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -612,14 +832,33 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
 
                           if (riwayatHarian.isEmpty)
                             Center(
-                              child: Padding(
+                              child: Container(
                                 padding: const EdgeInsets.all(40),
-                                child: Text(
-                                  'Belum ada data kehadiran',
-                                  style: PoppinsTextStyle.regular.copyWith(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.event_busy,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'Riwayat Kehadiran Kosong',
+                                      style: PoppinsTextStyle.semiBold.copyWith(
+                                        fontSize: 16,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Belum ada data kehadiran untuk\n$selectedMonth',
+                                      textAlign: TextAlign.center,
+                                      style: PoppinsTextStyle.regular.copyWith(
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:sigma/admin/auth/login/login_screen.dart';
 import 'package:sigma/api/api.dart';
 import 'package:sigma/karyawan/main/bottom_navigation_bar.dart';
+import 'package:sigma/karyawan/setelan/bantuan_screen.dart';
+import 'package:sigma/karyawan/setelan/privasi_keamanan_screen.dart';
+import 'package:sigma/karyawan/setelan/profile_screen.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:http/http.dart' as http;
@@ -66,13 +69,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadUserData() async {
     final token = await _storage.read(key: 'auth_token');
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/user'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/user'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final userData = UserModel.fromJson(json.decode(response.body));
@@ -133,12 +138,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         navigator.pop();
         _showElegantSnackBar("Password berhasil diubah");
       } else {
-        _showElegantSnackBar("Gagal: ${responseData['message']}", isError: true);
+        _showElegantSnackBar(
+          "Gagal: ${responseData['message']}",
+          isError: true,
+        );
       }
     } catch (e) {
       _showElegantSnackBar('Terjadi kesalahan koneksi', isError: true);
     } finally {
-      if(mounted) setDialogState(() => _isDialogLoading = false);
+      if (mounted) setDialogState(() => _isDialogLoading = false);
     }
   }
 
@@ -146,29 +154,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final navigator = Navigator.of(context);
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: _buildDialogTitle(icon: Icons.logout, text: 'Konfirmasi Keluar', color: Colors.red),
-        content: Text(
-          'Apakah Anda yakin ingin keluar dari aplikasi?',
-          style: PoppinsTextStyle.regular.copyWith(fontSize: 14, color: Colors.grey.shade700),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Batal', style: PoppinsTextStyle.medium.copyWith(color: Colors.grey.shade600)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade600,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Text('Ya, Keluar', style: PoppinsTextStyle.semiBold),
+            title: _buildDialogTitle(
+              icon: Icons.logout,
+              text: 'Konfirmasi Keluar',
+              color: Colors.red,
+            ),
+            content: Text(
+              'Apakah Anda yakin ingin keluar dari aplikasi?',
+              style: PoppinsTextStyle.regular.copyWith(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Batal',
+                  style: PoppinsTextStyle.medium.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade600,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text('Ya, Keluar', style: PoppinsTextStyle.semiBold),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirm != true) return;
@@ -189,14 +214,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showElegantSnackBar(String message, {bool isError = false}) {
-    if(!mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(isError ? Icons.error_outline : Icons.check_circle_outline, color: Colors.white),
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
             const SizedBox(width: 12),
-            Expanded(child: Text(message, style: PoppinsTextStyle.medium.copyWith(color: Colors.white, fontSize: 13))),
+            Expanded(
+              child: Text(
+                message,
+                style: PoppinsTextStyle.medium.copyWith(
+                  color: Colors.white,
+                  fontSize: 13,
+                ),
+              ),
+            ),
           ],
         ),
         backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
@@ -218,59 +254,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: _buildDialogTitle(icon: Icons.lock_reset, text: 'Ganti Password', color: Colors.blue),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildPasswordTextField(
-                  controller: oldPasswordController,
-                  labelText: 'Password Lama',
-                  isObscure: obscureOldPassword,
-                  onToggleVisibility: () => setDialogState(() => obscureOldPassword = !obscureOldPassword),
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  title: _buildDialogTitle(
+                    icon: Icons.lock_reset,
+                    text: 'Ganti Password',
+                    color: Colors.blue,
+                  ),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildPasswordTextField(
+                          controller: oldPasswordController,
+                          labelText: 'Password Lama',
+                          isObscure: obscureOldPassword,
+                          onToggleVisibility:
+                              () => setDialogState(
+                                () => obscureOldPassword = !obscureOldPassword,
+                              ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildPasswordTextField(
+                          controller: newPasswordController,
+                          labelText: 'Password Baru',
+                          isObscure: obscureNewPassword,
+                          onToggleVisibility:
+                              () => setDialogState(
+                                () => obscureNewPassword = !obscureNewPassword,
+                              ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildPasswordTextField(
+                          controller: confirmPasswordController,
+                          labelText: 'Konfirmasi Password Baru',
+                          isObscure: obscureConfirmPassword,
+                          onToggleVisibility:
+                              () => setDialogState(
+                                () =>
+                                    obscureConfirmPassword =
+                                        !obscureConfirmPassword,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Batal',
+                        style: PoppinsTextStyle.medium.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed:
+                          _isDialogLoading
+                              ? null
+                              : () => _handleChangePassword(setDialogState),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColor.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child:
+                          _isDialogLoading
+                              ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                              : Text(
+                                'Simpan',
+                                style: PoppinsTextStyle.semiBold,
+                              ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                _buildPasswordTextField(
-                  controller: newPasswordController,
-                  labelText: 'Password Baru',
-                  isObscure: obscureNewPassword,
-                  onToggleVisibility: () => setDialogState(() => obscureNewPassword = !obscureNewPassword),
-                ),
-                const SizedBox(height: 16),
-                _buildPasswordTextField(
-                  controller: confirmPasswordController,
-                  labelText: 'Konfirmasi Password Baru',
-                  isObscure: obscureConfirmPassword,
-                  onToggleVisibility: () => setDialogState(() => obscureConfirmPassword = !obscureConfirmPassword),
-                ),
-              ],
-            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Batal', style: PoppinsTextStyle.medium.copyWith(color: Colors.grey.shade600)),
-            ),
-            ElevatedButton(
-              onPressed: _isDialogLoading ? null : () => _handleChangePassword(setDialogState),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColor.primaryColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: _isDialogLoading
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text('Simpan', style: PoppinsTextStyle.semiBold),
-            ),
-          ],
-        ),
-      ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -284,11 +359,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BottomBar())),
+          onPressed:
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BottomBar()),
+              ),
         ),
         title: Text(
           'Pengaturan',
-          style: PoppinsTextStyle.bold.copyWith(color: Colors.black, fontSize: 24),
+          style: PoppinsTextStyle.bold.copyWith(
+            color: Colors.black,
+            fontSize: 24,
+          ),
         ),
       ),
       body: SafeArea(
@@ -300,7 +382,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 4))],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
@@ -309,16 +397,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [AppColor.primaryColor, AppColor.primaryColor.withOpacity(0.7)]),
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColor.primaryColor,
+                              AppColor.primaryColor.withOpacity(0.7),
+                            ],
+                          ),
                           shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: AppColor.primaryColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColor.primaryColor.withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: CircleAvatar(
                           radius: 32,
                           backgroundColor: Colors.white,
                           child: Text(
                             name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                            style: PoppinsTextStyle.bold.copyWith(fontSize: 28, color: AppColor.primaryColor),
+                            style: PoppinsTextStyle.bold.copyWith(
+                              fontSize: 28,
+                              color: AppColor.primaryColor,
+                            ),
                           ),
                         ),
                       ),
@@ -327,15 +429,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(name, style: PoppinsTextStyle.bold.copyWith(fontSize: 18, color: Colors.black87)),
+                            Text(
+                              name,
+                              style: PoppinsTextStyle.bold.copyWith(
+                                fontSize: 18,
+                                color: Colors.black87,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Icon(Icons.badge, size: 14, color: Colors.grey.shade600),
+                                Icon(
+                                  Icons.badge,
+                                  size: 14,
+                                  color: Colors.grey.shade600,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'NIK: $nik',
-                                  style: PoppinsTextStyle.medium.copyWith(fontSize: 12, color: Colors.grey.shade600),
+                                  style: PoppinsTextStyle.medium.copyWith(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
                                 ),
                               ],
                             ),
@@ -349,20 +464,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: _showChangePasswordDialog,
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 16,
+                      ),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [Colors.blue.shade600, Colors.blue.shade400]),
+                        gradient: LinearGradient(
+                          colors: [Colors.blue.shade600, Colors.blue.shade400],
+                        ),
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [BoxShadow(color: Colors.blue.shade300.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.shade300.withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.lock_reset, color: Colors.white, size: 20),
+                          const Icon(
+                            Icons.lock_reset,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                           const SizedBox(width: 10),
                           Text(
                             'Ganti Password',
-                            style: PoppinsTextStyle.semiBold.copyWith(fontSize: 14, color: Colors.white),
+                            style: PoppinsTextStyle.semiBold.copyWith(
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
                           ),
                         ],
                       ),
@@ -382,42 +515,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: "Akun Saya",
                   subtitle: "Lihat detail akun Anda",
                   backgroundColor: Colors.blue.shade500,
-                  onTap: () => _showElegantSnackBar("Fitur Akun Saya dalam pengembangan"),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ProfileScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _buildSettingItem(
                   icon: Icons.lock_outline,
                   title: "Privasi & Keamanan",
                   subtitle: "Kelola keamanan akun Anda",
                   backgroundColor: Colors.purple.shade500,
-                  onTap: () => _showElegantSnackBar("Fitur Privasi dalam pengembangan"),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PrivacySecurityScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _buildSettingItem(
                   icon: Icons.help_center,
                   title: "Bantuan",
                   subtitle: "FAQ dan panduan penggunaan",
                   backgroundColor: Colors.green.shade500,
-                  onTap: () => _showElegantSnackBar("Fitur Bantuan dalam pengembangan"),
-                  showDivider: false,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => HelpScreen(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
             const SizedBox(height: 32),
             Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Colors.red.shade600, Colors.red.shade400]),
+                gradient: LinearGradient(
+                  colors: [Colors.red.shade600, Colors.red.shade400],
+                ),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.red.shade300.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6))],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.shade300.withOpacity(0.4),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 onPressed: () => _signOut(),
                 icon: const Icon(Icons.logout, color: Colors.white, size: 22),
-                label: Text("Keluar dari Akun", style: PoppinsTextStyle.bold.copyWith(fontSize: 16, color: Colors.white)),
+                label: Text(
+                  "Keluar dari Akun",
+                  style: PoppinsTextStyle.bold.copyWith(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
@@ -426,12 +595,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSection(String title, IconData titleIcon, Color titleColor, List<Widget> items) {
+  Widget _buildSection(
+    String title,
+    IconData titleIcon,
+    Color titleColor,
+    List<Widget> items,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,11 +622,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: titleColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(
+                    color: titleColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child: Icon(titleIcon, color: titleColor, size: 20),
                 ),
                 const SizedBox(width: 12),
-                Text(title, style: PoppinsTextStyle.bold.copyWith(fontSize: 16, color: Colors.black87)),
+                Text(
+                  title,
+                  style: PoppinsTextStyle.bold.copyWith(
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
+                ),
               ],
             ),
           ),
@@ -480,9 +669,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [backgroundColor, backgroundColor.withOpacity(0.7)]),
+                    gradient: LinearGradient(
+                      colors: [
+                        backgroundColor,
+                        backgroundColor.withOpacity(0.7),
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: [BoxShadow(color: backgroundColor.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: backgroundColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Icon(icon, color: Colors.white, size: 22),
                 ),
@@ -491,15 +691,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: PoppinsTextStyle.semiBold.copyWith(fontSize: 14, color: Colors.black87)),
+                      Text(
+                        title,
+                        style: PoppinsTextStyle.semiBold.copyWith(
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
                       if (subtitle != null) ...[
                         const SizedBox(height: 2),
-                        Text(subtitle, style: PoppinsTextStyle.regular.copyWith(fontSize: 11, color: Colors.grey.shade500)),
+                        Text(
+                          subtitle,
+                          style: PoppinsTextStyle.regular.copyWith(
+                            fontSize: 11,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
                       ],
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_ios, color: Colors.grey.shade300, size: 16),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.grey.shade300,
+                  size: 16,
+                ),
               ],
             ),
           ),
@@ -507,7 +723,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (showDivider)
           Padding(
             padding: const EdgeInsets.only(left: 60),
-            child: Divider(height: 16, thickness: 0.5, color: Colors.grey.shade200),
+            child: Divider(
+              height: 16,
+              thickness: 0.5,
+              color: Colors.grey.shade200,
+            ),
           ),
       ],
     );
@@ -524,26 +744,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
       obscureText: isObscure,
       decoration: InputDecoration(
         labelText: labelText,
-        labelStyle: PoppinsTextStyle.regular.copyWith(fontSize: 13, color: Colors.grey.shade600),
+        labelStyle: PoppinsTextStyle.regular.copyWith(
+          fontSize: 13,
+          color: Colors.grey.shade600,
+        ),
         prefixIcon: Icon(Icons.lock_outline, color: Colors.grey.shade600),
         suffixIcon: IconButton(
-          icon: Icon(isObscure ? Icons.visibility_off : Icons.visibility, color: Colors.grey.shade600),
+          icon: Icon(
+            isObscure ? Icons.visibility_off : Icons.visibility,
+            color: Colors.grey.shade600,
+          ),
           onPressed: onToggleVisibility,
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColor.primaryColor, width: 2)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColor.primaryColor, width: 2),
+        ),
       ),
     );
   }
-  
-  Row _buildDialogTitle({required IconData icon, required String text, required Color color}) {
+
+  Row _buildDialogTitle({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon ,size: 24),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 24),
         ),
         const SizedBox(width: 12),
         Text(text, style: PoppinsTextStyle.semiBold.copyWith(fontSize: 16)),
