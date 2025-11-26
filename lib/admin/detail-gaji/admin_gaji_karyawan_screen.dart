@@ -1,95 +1,455 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as _storage;
 import 'package:intl/intl.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 class AdminSlipGajiListScreen extends StatefulWidget {
   const AdminSlipGajiListScreen({super.key});
 
   @override
-  State<AdminSlipGajiListScreen> createState() => _AdminSlipGajiListScreenState();
+  State<AdminSlipGajiListScreen> createState() =>
+      _AdminSlipGajiListScreenState();
 }
 
 class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
   bool _isLoading = true;
   List<KaryawanSlipGaji> _slipGajiList = [];
   List<KaryawanSlipGaji> _filteredList = [];
-  String _selectedBulan = 'Oktober 2025';
+  String _selectedBulan = '';
   final TextEditingController _searchController = TextEditingController();
 
-  final List<String> _bulanOptions = [
-    'Oktober 2025',
-    'September 2025',
-    'Agustus 2025',
-    'Juli 2025',
-  ];
+  List<String> _bulanOptions = [];
+  String? _token;
 
   @override
   void initState() {
     super.initState();
-    _loadSlipGaji();
+    initializeDateFormatting('id_ID', null).then((_) {
+      _initializeBulanOptions();
+      _loadToken(); // Sekarang dipanggil setelah locale ready
+    });
   }
 
-  void _loadSlipGaji() {
-    // Dummy data slip gaji karyawan
-    Future.delayed(const Duration(milliseconds: 500), () {
+  void _initializeBulanOptions() {
+    print('📅 Initializing bulan options...');
+    DateTime now = DateTime.now();
+    List<String> months = [];
+
+    for (int i = 0; i < 6; i++) {
+      DateTime date = DateTime(now.year, now.month - i, 1);
+      String monthYear = DateFormat('MMMM yyyy', 'id_ID').format(date);
+      months.add(monthYear);
+      print('   - Bulan ditambahkan: $monthYear');
+    }
+
+    setState(() {
+      _bulanOptions = months;
+      _selectedBulan = months.isNotEmpty ? months[0] : '';
+    });
+
+    print('✅ Bulan options berhasil: $_bulanOptions');
+    print('✅ Selected bulan: $_selectedBulan');
+  }
+
+  final _storage = const FlutterSecureStorage();
+
+  Future<void> _loadToken() async {
+    print('🔑 Loading token...');
+    try {
+      final token = await _storage.read(key: 'auth_token');
+
+      print(
+        '🔑 Token ditemukan: ${token != null ? "YES (${token.substring(0, 20)}...)" : "NO"}',
+      );
+
+      if (token != null && token.isNotEmpty) {
+        print('✅ Token valid, memanggil _loadSlipGaji()');
+        await _loadSlipGaji(token);
+      } else {
+        print('❌ Token kosong atau null');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('💥 Error loading token: $e');
       setState(() {
-        _slipGajiList = [
-          KaryawanSlipGaji(
-            id: 1,
-            nik: 'KRY001',
-            namaKaryawan: 'Budi Santoso',
-            jabatan: 'Software Engineer',
-            gajiPokok: 8000000,
-            tunjangan: 1550000,
-            potongan: 650000,
-            foto: null,
-          ),
-          KaryawanSlipGaji(
-            id: 2,
-            nik: 'KRY002',
-            namaKaryawan: 'Siti Nurhaliza',
-            jabatan: 'HR Manager',
-            gajiPokok: 7500000,
-            tunjangan: 1400000,
-            potongan: 600000,
-            foto: null,
-          ),
-          KaryawanSlipGaji(
-            id: 3,
-            nik: 'KRY003',
-            namaKaryawan: 'Ahmad Fauzi',
-            jabatan: 'Marketing Staff',
-            gajiPokok: 5500000,
-            tunjangan: 950000,
-            potongan: 450000,
-            foto: null,
-          ),
-          KaryawanSlipGaji(
-            id: 4,
-            nik: 'KRY004',
-            namaKaryawan: 'Dewi Lestari',
-            jabatan: 'Finance Manager',
-            gajiPokok: 9000000,
-            tunjangan: 1800000,
-            potongan: 750000,
-            foto: null,
-          ),
-          KaryawanSlipGaji(
-            id: 5,
-            nik: 'KRY005',
-            namaKaryawan: 'Eko Prasetyo',
-            jabatan: 'UI/UX Designer',
-            gajiPokok: 7000000,
-            tunjangan: 1300000,
-            potongan: 550000,
-            foto: null,
-          ),
-        ];
-        _filteredList = _slipGajiList;
         _isLoading = false;
       });
+      _showError('Error loading token: $e');
+    }
+  }
+
+  Future<void> _loadSlipGaji([String? tokenParam]) async {
+    final token = tokenParam ?? await _storage.read(key: 'auth_token');
+
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
     });
+
+    try {
+      DateTime selectedDate = DateFormat(
+        'MMMM yyyy',
+        'id_ID',
+      ).parse(_selectedBulan);
+      int month = selectedDate.month;
+      int year = selectedDate.year;
+
+      print('🔍 Loading slip gaji untuk: $month/$year');
+
+      final employeesResponse = await http
+          .get(
+            Uri.parse('http://10.0.2.2:8000/api/admin/employees'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('📋 Employees Response Status: ${employeesResponse.statusCode}');
+
+      if (employeesResponse.statusCode == 200) {
+        List<dynamic> employees = json.decode(employeesResponse.body);
+        print('👥 Jumlah karyawan: ${employees.length}');
+
+        List<KaryawanSlipGaji> slipGajiList = [];
+
+        for (var employee in employees) {
+          try {
+            print(
+              '🔄 Memproses karyawan: ${employee['name']} (ID: ${employee['id']})',
+            );
+
+            final payslipUrl =
+                'http://10.0.2.2:8000/api/admin/payslip-live/${employee['id']}/$year/$month';
+            print('🌐 Request URL: $payslipUrl');
+
+            final payslipResponse = await http
+                .get(
+                  Uri.parse(payslipUrl),
+                  headers: {
+                    'Authorization': 'Bearer $token',
+                    'Accept': 'application/json',
+                  },
+                )
+                .timeout(const Duration(seconds: 10));
+
+            print(
+              '📊 Payslip Response Status untuk ${employee['name']}: ${payslipResponse.statusCode}',
+            );
+
+            if (payslipResponse.statusCode == 200) {
+              var responseData = json.decode(payslipResponse.body);
+              print('✅ Response Data: $responseData');
+
+              var payslipData = responseData['data'];
+              print('💰 Payslip Data: $payslipData');
+
+              slipGajiList.add(
+                KaryawanSlipGaji(
+                  id: employee['id'] ?? 0,
+                  nik: employee['nik']?.toString() ?? '',
+                  namaKaryawan: employee['name']?.toString() ?? 'Unknown',
+                  jabatan: employee['jabatan']?.toString() ?? '',
+                  gajiPokok: _parseToInt(payslipData['total_basic_salary']),
+                  tunjangan: _parseToInt(payslipData['total_allowance']),
+                  potongan: _parseToInt(payslipData['total_deduction']),
+                  pajak: _parseToInt(payslipData['tax']),
+                  foto: null,
+                ),
+              );
+
+              print(
+                '✔️ Berhasil menambahkan slip gaji untuk ${employee['name']}',
+              );
+            } else {
+              print('❌ Error Payslip untuk ${employee['name']}:');
+              print('   Status: ${payslipResponse.statusCode}');
+              print('   Body: ${payslipResponse.body}');
+            }
+          } catch (e) {
+            print('⚠️ Skip employee ${employee['name']}: $e');
+            print('   Error detail: ${e.toString()}');
+          }
+        }
+
+        print('📦 Total slip gaji berhasil dimuat: ${slipGajiList.length}');
+
+        setState(() {
+          _slipGajiList = slipGajiList;
+          _filteredList = slipGajiList;
+          _isLoading = false;
+        });
+      } else if (employeesResponse.statusCode == 401) {
+        print('🔐 Token tidak valid - Status: ${employeesResponse.statusCode}');
+        setState(() {
+          _isLoading = false;
+        });
+        _showError('Token tidak valid. Silakan login kembali.');
+      } else {
+        print('❌ Error getting employees:');
+        print('   Status: ${employeesResponse.statusCode}');
+        print('   Body: ${employeesResponse.body}');
+        throw Exception(
+          'Gagal memuat data karyawan: ${employeesResponse.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('💥 Error di _loadSlipGaji: $e');
+      print('   Stack trace: ${StackTrace.current}');
+      setState(() {
+        _isLoading = false;
+      });
+      _showError('Error: $e');
+    }
+  }
+
+  Future<void> _showDetailDialog(KaryawanSlipGaji item) async {
+    final token = await _storage.read(key: 'auth_token');
+
+    if (token == null || token.isEmpty) {
+      _showError('Token tidak ditemukan. Silakan login kembali.');
+      return;
+    }
+
+    DateTime selectedDate = DateFormat(
+      'MMMM yyyy',
+      'id_ID',
+    ).parse(_selectedBulan);
+    int month = selectedDate.month;
+    int year = selectedDate.year;
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              'http://10.0.2.2:8000/api/admin/payslip-live/${item.id}/$year/$month',
+            ),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        var payslipData = responseData['data'];
+
+        if (!mounted) return;
+
+        showDialog(
+          context: context,
+          builder:
+              (context) => Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 600),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColor.primaryColor,
+                              AppColor.primaryColor.withOpacity(0.8),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            CircleAvatar(
+                              radius: 35,
+                              backgroundColor: Colors.white,
+                              child: Text(
+                                item.namaKaryawan.isNotEmpty
+                                    ? item.namaKaryawan
+                                        .substring(0, 1)
+                                        .toUpperCase()
+                                    : '?',
+                                style: PoppinsTextStyle.bold.copyWith(
+                                  fontSize: 28,
+                                  color: AppColor.primaryColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              item.namaKaryawan,
+                              style: PoppinsTextStyle.bold.copyWith(
+                                fontSize: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'NIK: ${item.nik} • ${item.jabatan}',
+                              style: PoppinsTextStyle.regular.copyWith(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Gaji Bersih',
+                                    style: PoppinsTextStyle.regular.copyWith(
+                                      fontSize: 12,
+                                      color: Colors.white.withOpacity(0.9),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatCurrency(item.gajiBersih),
+                                    style: PoppinsTextStyle.bold.copyWith(
+                                      fontSize: 22,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Detail Body
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDetailSection(
+                                'Pendapatan',
+                                Icons.add_circle_outline,
+                                Colors.green,
+                                [
+                                  DetailRow('Gaji Pokok', item.gajiPokok),
+                                  DetailRow('Total Tunjangan', item.tunjangan),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _buildDetailSection(
+                                'Potongan',
+                                Icons.remove_circle_outline,
+                                Colors.red,
+                                [
+                                  DetailRow('Potongan Harian', item.potongan),
+                                  if (item.pajak > 0)
+                                    DetailRow('Pajak Bulanan', item.pajak),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.blue[200]!),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.blue[700],
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Periode: $_selectedBulan\n${item.pajak > 0 ? "Pajak sudah dipotong (akhir bulan)" : "Pajak belum dipotong (belum akhir bulan)"}',
+                                        style: PoppinsTextStyle.regular
+                                            .copyWith(
+                                              fontSize: 11,
+                                              color: Colors.blue[900],
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Footer Button
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColor.primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Tutup',
+                              style: PoppinsTextStyle.semiBold.copyWith(
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        );
+      } else {
+        _showError('Gagal memuat detail: Status ${response.statusCode}');
+      }
+    } catch (e) {
+      _showError('Gagal memuat detail: $e');
+    }
+  }
+
+  int _parseToInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 
   void _filterSearch(String query) {
@@ -97,11 +457,14 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       if (query.isEmpty) {
         _filteredList = _slipGajiList;
       } else {
-        _filteredList = _slipGajiList.where((item) {
-          return item.namaKaryawan.toLowerCase().contains(query.toLowerCase()) ||
-              item.nik.toLowerCase().contains(query.toLowerCase()) ||
-              item.jabatan.toLowerCase().contains(query.toLowerCase());
-        }).toList();
+        _filteredList =
+            _slipGajiList.where((item) {
+              return item.namaKaryawan.toLowerCase().contains(
+                    query.toLowerCase(),
+                  ) ||
+                  item.nik.toLowerCase().contains(query.toLowerCase()) ||
+                  item.jabatan.toLowerCase().contains(query.toLowerCase());
+            }).toList();
       }
     });
   }
@@ -119,8 +482,89 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     return _filteredList.fold(0, (sum, item) => sum + item.gajiBersih);
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Widget _buildDetailSection(
+    String title,
+    IconData icon,
+    Color color,
+    List<DetailRow> rows,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: PoppinsTextStyle.bold.copyWith(
+                fontSize: 14,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children:
+                rows.map((row) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          row.label,
+                          style: PoppinsTextStyle.regular.copyWith(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          _formatCurrency(row.amount),
+                          style: PoppinsTextStyle.semiBold.copyWith(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    print('🎨 Build widget dipanggil, _isLoading: $_isLoading');
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -130,7 +574,10 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            print('🔙 Back button pressed');
+            Navigator.pop(context);
+          },
         ),
         title: Text(
           'Slip Gaji Karyawan',
@@ -144,9 +591,19 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
         children: [
           _buildHeaderSection(),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredList.isEmpty
+            child:
+                _isLoading
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Memuat data...'),
+                        ],
+                      ),
+                    )
+                    : _filteredList.isEmpty
                     ? _buildEmptyState()
                     : _buildSlipGajiList(),
           ),
@@ -161,7 +618,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       color: Colors.white,
       child: Column(
         children: [
-          // Filter Bulan
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
@@ -170,7 +626,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               border: Border.all(color: AppColor.primaryColor),
             ),
             child: DropdownButton<String>(
-              value: _selectedBulan,
+              value: _selectedBulan.isNotEmpty ? _selectedBulan : null,
               isExpanded: true,
               underline: const SizedBox(),
               icon: Icon(Icons.arrow_drop_down, color: AppColor.primaryColor),
@@ -178,24 +634,24 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                 fontSize: 14,
                 color: AppColor.primaryColor,
               ),
-              items: _bulanOptions.map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items:
+                  _bulanOptions.map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
               onChanged: (String? newValue) {
                 if (newValue != null) {
                   setState(() {
                     _selectedBulan = newValue;
-                    _loadSlipGaji(); // Reload data
                   });
+                  _loadSlipGaji();
                 }
               },
             ),
           ),
           const SizedBox(height: 16),
-          // Search Bar
           TextField(
             controller: _searchController,
             onChanged: _filterSearch,
@@ -206,15 +662,16 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                 color: Colors.grey[400],
               ),
               prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.clear, color: Colors.grey[400]),
-                      onPressed: () {
-                        _searchController.clear();
-                        _filterSearch('');
-                      },
-                    )
-                  : null,
+              suffixIcon:
+                  _searchController.text.isNotEmpty
+                      ? IconButton(
+                        icon: Icon(Icons.clear, color: Colors.grey[400]),
+                        onPressed: () {
+                          _searchController.clear();
+                          _filterSearch('');
+                        },
+                      )
+                      : null,
               filled: true,
               fillColor: Colors.grey[100],
               border: OutlineInputBorder(
@@ -228,7 +685,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Summary Card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -280,11 +736,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                   ),
                   child: Column(
                     children: [
-                      const Icon(
-                        Icons.people,
-                        color: Colors.white,
-                        size: 24,
-                      ),
+                      const Icon(Icons.people, color: Colors.white, size: 24),
                       const SizedBox(height: 4),
                       Text(
                         '${_filteredList.length} Karyawan',
@@ -341,12 +793,13 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               children: [
                 Row(
                   children: [
-                    // Avatar
                     CircleAvatar(
                       radius: 28,
                       backgroundColor: AppColor.primaryColor.withOpacity(0.1),
                       child: Text(
-                        item.namaKaryawan.substring(0, 1).toUpperCase(),
+                        item.namaKaryawan.isNotEmpty
+                            ? item.namaKaryawan.substring(0, 1).toUpperCase()
+                            : '?',
                         style: PoppinsTextStyle.bold.copyWith(
                           fontSize: 20,
                           color: AppColor.primaryColor,
@@ -394,10 +847,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                         ],
                       ),
                     ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey[400],
-                    ),
+                    Icon(Icons.chevron_right, color: Colors.grey[400]),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -415,24 +865,16 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                         _formatCurrency(item.gajiPokok),
                         Colors.green,
                       ),
-                      Container(
-                        width: 1,
-                        height: 30,
-                        color: Colors.grey[300],
-                      ),
+                      Container(width: 1, height: 30, color: Colors.grey[300]),
                       _buildInfoColumn(
                         'Tunjangan',
                         _formatCurrency(item.tunjangan),
                         Colors.blue,
                       ),
-                      Container(
-                        width: 1,
-                        height: 30,
-                        color: Colors.grey[300],
-                      ),
+                      Container(width: 1, height: 30, color: Colors.grey[300]),
                       _buildInfoColumn(
                         'Potongan',
-                        _formatCurrency(item.potongan),
+                        _formatCurrency(item.totalPotongan),
                         Colors.red,
                       ),
                     ],
@@ -509,10 +951,10 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off, size: 80, color: Colors.grey[300]),
+          Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
-            'Tidak ada data ditemukan',
+            'Belum ada slip gaji',
             style: PoppinsTextStyle.semiBold.copyWith(
               fontSize: 16,
               color: Colors.grey[600],
@@ -520,259 +962,27 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Coba gunakan kata kunci lain',
+            _selectedBulan.isNotEmpty
+                ? 'Slip gaji untuk $_selectedBulan\nbelum tersedia'
+                : 'Pilih bulan untuk melihat slip gaji',
             style: PoppinsTextStyle.regular.copyWith(
               fontSize: 13,
               color: Colors.grey[400],
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  void _showDetailDialog(KaryawanSlipGaji item) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Container(
-          constraints: const BoxConstraints(maxHeight: 600),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColor.primaryColor,
-                      AppColor.primaryColor.withOpacity(0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 35,
-                      backgroundColor: Colors.white,
-                      child: Text(
-                        item.namaKaryawan.substring(0, 1).toUpperCase(),
-                        style: PoppinsTextStyle.bold.copyWith(
-                          fontSize: 28,
-                          color: AppColor.primaryColor,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      item.namaKaryawan,
-                      style: PoppinsTextStyle.bold.copyWith(
-                        fontSize: 18,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'NIK: ${item.nik} • ${item.jabatan}',
-                      style: PoppinsTextStyle.regular.copyWith(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Gaji Bersih',
-                            style: PoppinsTextStyle.regular.copyWith(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _formatCurrency(item.gajiBersih),
-                            style: PoppinsTextStyle.bold.copyWith(
-                              fontSize: 22,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Detail Body
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildDetailSection(
-                        'Pendapatan',
-                        Icons.add_circle_outline,
-                        Colors.green,
-                        [
-                          DetailRow('Gaji Pokok', item.gajiPokok),
-                          DetailRow('Total Tunjangan', item.tunjangan),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildDetailSection(
-                        'Potongan',
-                        Icons.remove_circle_outline,
-                        Colors.red,
-                        [
-                          DetailRow('Total Potongan', item.potongan),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue[200]!),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, color: Colors.blue[700], size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Periode: $_selectedBulan',
-                                style: PoppinsTextStyle.regular.copyWith(
-                                  fontSize: 11,
-                                  color: Colors.blue[900],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Footer Button
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColor.primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      'Tutup',
-                      style: PoppinsTextStyle.semiBold.copyWith(fontSize: 14),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailSection(
-    String title,
-    IconData icon,
-    Color color,
-    List<DetailRow> rows,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 16),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: PoppinsTextStyle.bold.copyWith(
-                fontSize: 14,
-                color: Colors.black,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[50],
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: rows.map((row) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      row.label,
-                      style: PoppinsTextStyle.regular.copyWith(
-                        fontSize: 12,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    Text(
-                      _formatCurrency(row.amount),
-                      style: PoppinsTextStyle.semiBold.copyWith(
-                        fontSize: 12,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }
 
-// Model untuk Slip Gaji Karyawan
 class KaryawanSlipGaji {
   final int id;
   final String nik;
@@ -781,6 +991,7 @@ class KaryawanSlipGaji {
   final int gajiPokok;
   final int tunjangan;
   final int potongan;
+  final int pajak;
   final String? foto;
 
   KaryawanSlipGaji({
@@ -791,13 +1002,14 @@ class KaryawanSlipGaji {
     required this.gajiPokok,
     required this.tunjangan,
     required this.potongan,
+    required this.pajak,
     this.foto,
   });
 
-  int get gajiBersih => gajiPokok + tunjangan - potongan;
+  int get totalPotongan => potongan + pajak;
+  int get gajiBersih => gajiPokok + tunjangan - totalPotongan;
 }
 
-// Helper class untuk detail row
 class DetailRow {
   final String label;
   final int amount;
