@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
@@ -15,7 +17,6 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-
 // Update Model PengajuanItem untuk menambahkan field yang diperlukan
 class PengajuanItem {
   final int id;
@@ -25,9 +26,9 @@ class PengajuanItem {
   final String alasan;
   final DateTime tanggal;
   final String? fileProof;
-  final DateTime? startDate;  // Tambahkan field ini
-  final DateTime? endDate;    // Tambahkan field ini
-  final String? location;     // Tambahkan field ini
+  final DateTime? startDate; // Tambahkan field ini
+  final DateTime? endDate; // Tambahkan field ini
+  final String? location; // Tambahkan field ini
 
   PengajuanItem({
     required this.id,
@@ -51,8 +52,12 @@ class PengajuanItem {
       alasan: json['reason'] ?? '-',
       tanggal: DateTime.parse(json['created_at']),
       fileProof: json['file_proof'],
-      startDate: json['start_date'] != null ? DateTime.parse(json['start_date']) : null,
-      endDate: json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
+      startDate:
+          json['start_date'] != null
+              ? DateTime.parse(json['start_date'])
+              : null,
+      endDate:
+          json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
       location: json['location'],
     );
   }
@@ -131,29 +136,85 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     final action = isApproved ? 'approve' : 'reject';
     final url = Uri.parse('$_baseUrl/admin/leave-requests/$id/$action');
 
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
     try {
-      final response = await http.put(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
+      print('🚀 Sending request to: $url'); // DEBUG
 
-      final data = json.decode(response.body);
+      final response = await http
+          .put(
+            url,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        if (mounted) {
-          setState(() {
-            _pendingApprovals.removeWhere((item) => item.id == id);
-          });
-        }
-        _showSuccess(data['message']);
-      } else {
-        _showError(data['message'] ?? 'Gagal memproses permintaan.');
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      print('📦 Response status: ${response.statusCode}'); // DEBUG
+      print('📦 Response body: ${response.body}'); // DEBUG
+
+      // Parse response
+      Map<String, dynamic> data;
+      try {
+        data = json.decode(response.body);
+      } catch (e) {
+        print('❌ JSON Parse Error: $e'); // DEBUG
+        _showError('Error parsing response: $e');
+        return;
       }
+
+      // Check status code
+      if (response.statusCode == 200) {
+        // Check success field
+        bool isSuccess = data['success'] == true || data['success'] == 'true';
+
+        print('✅ Success field: ${data['success']}'); // DEBUG
+
+        if (isSuccess) {
+          if (mounted) {
+            setState(() {
+              _pendingApprovals.removeWhere((item) => item.id == id);
+            });
+          }
+
+          String message =
+              data['message'] ??
+              (isApproved
+                  ? 'Pengajuan berhasil disetujui'
+                  : 'Pengajuan berhasil ditolak');
+          _showSuccess(message);
+
+          // Reload data untuk memastikan
+          await _loadData();
+        } else {
+          print('❌ Success is false'); // DEBUG
+          _showError(data['message'] ?? 'Gagal memproses permintaan.');
+        }
+      } else {
+        print('❌ Status code not 200: ${response.statusCode}'); // DEBUG
+        _showError(
+          data['message'] ??
+              'Gagal memproses permintaan (Status: ${response.statusCode})',
+        );
+      }
+    } on TimeoutException catch (e) {
+      if (mounted) Navigator.pop(context);
+      print('❌ Timeout: $e'); // DEBUG
+      _showError('Request timeout. Silakan coba lagi.');
     } catch (e) {
-      _showError('Terjadi kesalahan koneksi: $e');
+      if (mounted) Navigator.pop(context);
+      print('❌ Exception: $e'); // DEBUG
+      _showError('Terjadi kesalahan: $e');
     }
   }
 
@@ -188,89 +249,127 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
-
-
-Future<void> _launchFile(String? filePath) async {
-  if (filePath == null || filePath.isEmpty) {
-    _showError("File tidak ditemukan.");
-    return;
-  }
-
-  final storageBase = baseUrl.replaceAll(RegExp(r'/api$'), '');
-  String cleanPath = filePath.replaceFirst(RegExp(r'^/'), '').replaceFirst(RegExp(r'^storage/'), '');
-  final pdfUrl = '$storageBase/storage/$cleanPath';
-
-  final shouldOpen = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Buka File'),
-      content: const Text("Ingin membuka lampiran PDF?"),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Buka')),
-      ],
-    ),
-  );
-
-  if (shouldOpen != true) return;
-
-  try {
-    final response = await http.get(Uri.parse(pdfUrl));
-
-    if (response.statusCode != 200) {
-      _showError("Gagal mengambil file.");
+  Future<void> _launchFile(String? filePath) async {
+    if (filePath == null || filePath.isEmpty) {
+      _showError("File tidak ditemukan.");
       return;
     }
 
-    final bytes = response.bodyBytes;
+    final storageBase = baseUrl.replaceAll(RegExp(r'/api$'), '');
+    String cleanPath = filePath
+        .replaceFirst(RegExp(r'^/'), '')
+        .replaceFirst(RegExp(r'^storage/'), '');
+    final pdfUrl = '$storageBase/storage/$cleanPath';
 
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Buka File'),
+            content: const Text("Ingin membuka lampiran PDF?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Buka'),
+              ),
+            ],
+          ),
+    );
 
-    final doc = PdfDocument.openData(bytes);
+    if (shouldOpen != true) return;
 
- Navigator.push(
-  context,
-  MaterialPageRoute(
-    builder: (_) => Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        leading: Container(
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
-            onPressed: () => Navigator.pop(context),
-          ),
+    try {
+      final response = await http.get(Uri.parse(pdfUrl));
+
+      if (response.statusCode != 200) {
+        _showError("Gagal mengambil file.");
+        return;
+      }
+
+      final bytes = response.bodyBytes;
+
+      final doc = PdfDocument.openData(bytes);
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) => Scaffold(
+                appBar: AppBar(
+                  elevation: 0,
+                  backgroundColor: Colors.white,
+                  leading: Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.black87,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  title: const Text(
+                    "Preview File",
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  centerTitle: true,
+                  // TOMBOL DOWNLOAD DITAMBAHKAN DI SINI
+                  actions: [
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.download_rounded,
+                          color: Colors.purple.shade700,
+                          size: 24,
+                        ),
+                        onPressed: () => _downloadPdf(pdfUrl),
+                        tooltip: 'Download PDF',
+                      ),
+                    ),
+                  ],
+                ),
+                body: Container(
+                  color: Colors.grey[200],
+                  child: PdfViewPinch(
+                    controller: PdfControllerPinch(document: doc),
+                  ),
+                ),
+              ),
         ),
-        title: const Text(
-          "Preview File",
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: Container(
-        color: Colors.grey[200],
-        child: PdfViewPinch(
-          controller: PdfControllerPinch(document: doc),
-        ),
-      ),
-    ),
-  ),
-);
-  } catch (e) {
-    _showError("Terjadi kesalahan: $e");
+      );
+    } catch (e) {
+      _showError("Terjadi kesalahan: $e");
+    }
   }
-}
 
-
+  Future<void> _downloadPdf(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      await launchUrl(uri);
+      _showSuccess("Membuka file...");
+    } catch (e) {
+      _showError("Gagal membuka file: $e");
+    }
+  }
 
   Future<void> _logout() async {
     final navigator = Navigator.of(context);
@@ -359,7 +458,6 @@ Future<void> _launchFile(String? filePath) async {
             ],
           ),
     );
-    
   }
 
   void _showError(String message) {
@@ -774,406 +872,411 @@ Future<void> _launchFile(String? filePath) async {
     );
   }
 
-  
-// Update widget _buildPendingItem
-Widget _buildPendingItem(PengajuanItem item) {
-  final isIzin = item.jenisPengajuan == 'izin';
-  final iconColor = isIzin ? Colors.orange : Colors.blue;
-  final icon = isIzin ? Icons.info_outline : Icons.calendar_today;
+  // Update widget _buildPendingItem
+  Widget _buildPendingItem(PengajuanItem item) {
+    final isIzin = item.jenisPengajuan == 'izin';
+    final iconColor = isIzin ? Colors.orange : Colors.blue;
+    final icon = isIzin ? Icons.info_outline : Icons.calendar_today;
 
-  return Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.grey[200]!),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.1),
-          blurRadius: 10,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header: Nama & Badge
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: Nama & Badge
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
               ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.namaKaryawan,
-                    style: PoppinsTextStyle.bold.copyWith(
-                      fontSize: 14,
-                      color: Colors.black,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.namaKaryawan,
+                      style: PoppinsTextStyle.bold.copyWith(
+                        fontSize: 14,
+                        color: Colors.black,
+                      ),
                     ),
+                    Text(
+                      'NIK: ${item.nik}',
+                      style: PoppinsTextStyle.regular.copyWith(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: iconColor),
+                ),
+                child: Text(
+                  item.jenisPengajuan.toUpperCase(),
+                  style: PoppinsTextStyle.bold.copyWith(
+                    fontSize: 10,
+                    color: iconColor,
                   ),
-                  Text(
-                    'NIK: ${item.nik}',
-                    style: PoppinsTextStyle.regular.copyWith(
-                      fontSize: 11,
-                      color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 24, thickness: 0.5),
+
+          // Periode Tanggal (jika ada)
+          if (item.startDate != null || item.endDate != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.date_range_rounded,
+                    size: 18,
+                    color: Colors.blue.shade700,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Periode',
+                          style: PoppinsTextStyle.medium.copyWith(
+                            fontSize: 11,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatPeriodDate(item.startDate, item.endDate),
+                          style: PoppinsTextStyle.semiBold.copyWith(
+                            fontSize: 13,
+                            color: Colors.blue.shade900,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 4,
-              ),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: iconColor),
-              ),
-              child: Text(
-                item.jenisPengajuan.toUpperCase(),
-                style: PoppinsTextStyle.bold.copyWith(
-                  fontSize: 10,
-                  color: iconColor,
-                ),
-              ),
-            ),
+            const SizedBox(height: 12),
           ],
-        ),
-        const Divider(height: 24, thickness: 0.5),
 
-        // Periode Tanggal (jika ada)
-        if (item.startDate != null || item.endDate != null) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.date_range_rounded,
-                  size: 18,
-                  color: Colors.blue.shade700,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          // Info Pengajuan (Waktu & Lokasi)
+          Row(
+            children: [
+              // Waktu Pengajuan
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
                     children: [
-                      Text(
-                        'Periode',
-                        style: PoppinsTextStyle.medium.copyWith(
-                          fontSize: 11,
-                          color: Colors.blue.shade700,
-                        ),
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: 16,
+                        color: Colors.grey.shade600,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatPeriodDate(item.startDate, item.endDate),
-                        style: PoppinsTextStyle.semiBold.copyWith(
-                          fontSize: 13,
-                          color: Colors.blue.shade900,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Diajukan',
+                              style: PoppinsTextStyle.regular.copyWith(
+                                fontSize: 10,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            Text(
+                              _formatDateTime(item.tanggal),
+                              style: PoppinsTextStyle.medium.copyWith(
+                                fontSize: 11,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(width: 8),
+              // Tombol Lokasi
+              if (item.location != null && item.location!.isNotEmpty)
+                InkWell(
+                  onTap:
+                      () =>
+                          _showLocationMap(item.location!, 'Lokasi Pengajuan'),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Icon(
+                      Icons.location_on_rounded,
+                      size: 24,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Alasan
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.description_rounded,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Alasan',
+                      style: PoppinsTextStyle.medium.copyWith(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.alasan,
+                  style: PoppinsTextStyle.regular.copyWith(
+                    fontSize: 13,
+                    color: Colors.black87,
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-        ],
 
-        // Info Pengajuan (Waktu & Lokasi)
-        Row(
-          children: [
-            // Waktu Pengajuan
-            Expanded(
+          // Lampiran File (jika ada)
+          if (item.fileProof != null && item.fileProof!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => _launchFile(item.fileProof),
+              borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: Colors.purple.shade50,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: Colors.purple.shade200),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.access_time_rounded,
+                      Icons.attachment_rounded,
                       size: 16,
-                      color: Colors.grey.shade600,
+                      color: Colors.purple.shade700,
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Diajukan',
-                            style: PoppinsTextStyle.regular.copyWith(
-                              fontSize: 10,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          Text(
-                            _formatDateTime(item.tanggal),
-                            style: PoppinsTextStyle.medium.copyWith(
-                              fontSize: 11,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Lihat Lampiran',
+                      style: PoppinsTextStyle.medium.copyWith(
+                        fontSize: 12,
+                        color: Colors.purple.shade700,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            // Tombol Lokasi
-            if (item.location != null && item.location!.isNotEmpty)
-              InkWell(
-                onTap: () => _showLocationMap(item.location!, 'Lokasi Pengajuan'),
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Icon(
-                    Icons.location_on_rounded,
-                    size: 24,
-                    color: Colors.green.shade700,
+          ],
+
+          // Tombol Aksi
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleApproval(item.id, false),
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('Tolak'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Alasan
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.description_rounded,
-                    size: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Alasan',
-                    style: PoppinsTextStyle.medium.copyWith(
-                      fontSize: 11,
-                      color: Colors.grey.shade600,
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleApproval(item.id, true),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Setujui'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                item.alasan,
-                style: PoppinsTextStyle.regular.copyWith(
-                  fontSize: 13,
-                  color: Colors.black87,
                 ),
               ),
             ],
           ),
-        ),
-
-        // Lampiran File (jika ada)
-        if (item.fileProof != null && item.fileProof!.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          InkWell(
-            onTap: () => _launchFile(item.fileProof),
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.purple.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.purple.shade200),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.attachment_rounded,
-                    size: 16,
-                    color: Colors.purple.shade700,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Lihat Lampiran',
-                    style: PoppinsTextStyle.medium.copyWith(
-                      fontSize: 12,
-                      color: Colors.purple.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
-
-        // Tombol Aksi
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _handleApproval(item.id, false),
-                icon: const Icon(Icons.close, size: 18),
-                label: const Text('Tolak'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _handleApproval(item.id, true),
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('Setujui'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-// Fungsi helper untuk format periode tanggal
-String _formatPeriodDate(DateTime? start, DateTime? end) {
-  if (start == null && end == null) return 'Tanggal tidak tersedia';
-  
-  final DateFormat dayFormat = DateFormat('d', 'id_ID');
-  final DateFormat monthYearFormat = DateFormat('MMMM yyyy', 'id_ID');
-  final DateFormat fullFormat = DateFormat('d MMMM yyyy', 'id_ID');
-  
-  if (start != null && end != null) {
-    // Jika bulan dan tahun sama
-    if (start.month == end.month && start.year == end.year) {
-      return '${dayFormat.format(start)} - ${fullFormat.format(end)}';
-    } else {
-      return '${fullFormat.format(start)} - ${fullFormat.format(end)}';
-    }
-  } else if (start != null) {
-    return fullFormat.format(start);
-  } else {
-    return fullFormat.format(end!);
-  }
-}
-
-// Tambahkan fungsi untuk show location map (sama seperti di AdminEmployeeHistoryScreen)
-void _showLocationMap(String locationString, String title) {
-  if (!locationString.contains(',')) {
-    _showError('Data lokasi tidak valid.');
-    return;
-  }
-  
-  final parts = locationString.split(',');
-  final lat = double.tryParse(parts[0].trim());
-  final lon = double.tryParse(parts[1].trim());
-
-  if (lat == null || lon == null) {
-    _showError('Koordinat lokasi tidak valid.');
-    return;
-  }
-  
-  final location = LatLng(lat, lon);
-
-  showDialog(
-    context: context,
-    builder: (context) => Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 10, 10),
-            child: Row(
+    );
+  }
+
+  // Fungsi helper untuk format periode tanggal
+  String _formatPeriodDate(DateTime? start, DateTime? end) {
+    if (start == null && end == null) return 'Tanggal tidak tersedia';
+
+    final DateFormat dayFormat = DateFormat('d', 'id_ID');
+    final DateFormat monthYearFormat = DateFormat('MMMM yyyy', 'id_ID');
+    final DateFormat fullFormat = DateFormat('d MMMM yyyy', 'id_ID');
+
+    if (start != null && end != null) {
+      // Jika bulan dan tahun sama
+      if (start.month == end.month && start.year == end.year) {
+        return '${dayFormat.format(start)} - ${fullFormat.format(end)}';
+      } else {
+        return '${fullFormat.format(start)} - ${fullFormat.format(end)}';
+      }
+    } else if (start != null) {
+      return fullFormat.format(start);
+    } else {
+      return fullFormat.format(end!);
+    }
+  }
+
+  // Tambahkan fungsi untuk show location map (sama seperti di AdminEmployeeHistoryScreen)
+  void _showLocationMap(String locationString, String title) {
+    if (!locationString.contains(',')) {
+      _showError('Data lokasi tidak valid.');
+      return;
+    }
+
+    final parts = locationString.split(',');
+    final lat = double.tryParse(parts[0].trim());
+    final lon = double.tryParse(parts[1].trim());
+
+    if (lat == null || lon == null) {
+      _showError('Koordinat lokasi tidak valid.');
+      return;
+    }
+
+    final location = LatLng(lat, lon);
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.location_on, color: AppColor.primaryColor),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: PoppinsTextStyle.bold.copyWith(fontSize: 16),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 10, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on, color: AppColor.primaryColor),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: PoppinsTextStyle.bold.copyWith(fontSize: 16),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                SizedBox(
+                  height: 400,
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: location,
+                      zoom: 17,
+                    ),
+                    markers: {
+                      Marker(
+                        markerId: MarkerId(title),
+                        position: location,
+                        infoWindow: InfoWindow(title: title),
+                      ),
+                    },
+                  ),
                 ),
               ],
             ),
           ),
-          SizedBox(
-            height: 400,
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: location,
-                zoom: 17,
-              ),
-              markers: {
-                Marker(
-                  markerId: MarkerId(title),
-                  position: location,
-                  infoWindow: InfoWindow(title: title),
-                ),
-              },
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+    );
+  }
 
   String _formatDateTime(DateTime dt) {
     final now = DateTime.now();

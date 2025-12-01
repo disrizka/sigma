@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as _storage;
 import 'package:intl/intl.dart';
+import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 import 'package:http/http.dart' as http;
@@ -23,6 +24,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
   List<KaryawanSlipGaji> _filteredList = [];
   String _selectedBulan = '';
   final TextEditingController _searchController = TextEditingController();
+  final String _baseUrl = '$baseUrl/api/admin';
 
   List<String> _bulanOptions = [];
   String? _token;
@@ -112,7 +114,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
 
       final employeesResponse = await http
           .get(
-            Uri.parse('http://10.0.2.2:8000/api/admin/employees'),
+            Uri.parse('$_baseUrl/employees'),
             headers: {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',
@@ -135,7 +137,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
             );
 
             final payslipUrl =
-                'http://10.0.2.2:8000/api/admin/payslip-live/${employee['id']}/$year/$month';
+                '$_baseUrl/payslip-live/${employee['id']}/$year/$month';
             print('🌐 Request URL: $payslipUrl');
 
             final payslipResponse = await http
@@ -236,9 +238,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     try {
       final response = await http
           .get(
-            Uri.parse(
-              'http://10.0.2.2:8000/api/admin/payslip-live/${item.id}/$year/$month',
-            ),
+            Uri.parse('$_baseUrl/payslip-live/${item.id}/$year/$month'),
             headers: {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',

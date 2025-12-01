@@ -47,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     updateTime();
     getUser();
     getMonthlyStats();
+    getGajiBulanIni(); //
     timer = Timer.periodic(
       const Duration(seconds: 1),
       (Timer t) => updateTime(),
@@ -121,12 +122,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      final now = DateTime.now();
-      final year = now.year;
-      final month = now.month;
-
-      // Ambil data slip gaji bulan ini untuk mendapatkan statistik
-      final url = Uri.parse('$_baseUrl/karyawan/payslip-live/$year/$month');
+      // Gunakan endpoint baru
+      final url = Uri.parse('$_baseUrl/karyawan/monthly-stats');
       final response = await http
           .get(
             url,
@@ -145,53 +142,75 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (decoded['success'] == true && decoded['data'] != null) {
           final data = decoded['data'];
-          final dailyDetails = data['daily_details'] as List<dynamic>? ?? [];
-
-          // Hitung statistik dari daily_details
-          int cutiCount = 0;
-          int izinCount = 0;
-          int alphaCount = 0;
-
-          for (var detail in dailyDetails) {
-            final status = detail['status']?.toString().toLowerCase() ?? '';
-            if (status == 'cuti') {
-              cutiCount++;
-            } else if (status == 'izin') {
-              izinCount++;
-            } else if (status == 'alpha') {
-              alphaCount++;
-            }
-          }
 
           setState(() {
             monthlyStats = {
-              'gaji_bersih': data['net_salary'] ?? 0,
-              'cuti': cutiCount,
-              'izin': izinCount,
-              'alpha': alphaCount,
+              'cuti': data['cuti_tahun_ini'] ?? 0, // Per tahun
+              'izin': data['izin_bulan_ini'] ?? 0, // Per bulan
+              'alpha': data['alpha_bulan_ini'] ?? 0, // Per bulan
+              'sisa_cuti': data['sisa_cuti'] ?? 12,
             };
             isLoadingStats = false;
           });
         } else {
           setState(() {
-            monthlyStats = {'gaji_bersih': 0, 'cuti': 0, 'izin': 0, 'alpha': 0};
+            monthlyStats = {'cuti': 0, 'izin': 0, 'alpha': 0, 'sisa_cuti': 12};
             isLoadingStats = false;
           });
         }
       } else {
         setState(() {
-          monthlyStats = {'gaji_bersih': 0, 'cuti': 0, 'izin': 0, 'alpha': 0};
+          monthlyStats = {'cuti': 0, 'izin': 0, 'alpha': 0, 'sisa_cuti': 12};
           isLoadingStats = false;
         });
       }
     } catch (e) {
       print("Error getMonthlyStats: $e");
       setState(() {
-        monthlyStats = {'gaji_bersih': 0, 'cuti': 0, 'izin': 0, 'alpha': 0};
+        monthlyStats = {'cuti': 0, 'izin': 0, 'alpha': 0, 'sisa_cuti': 12};
         isLoadingStats = false;
       });
     }
   }
+  Future<void> getGajiBulanIni() async {
+  try {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null || token.isEmpty) return;
+
+    final now = DateTime.now();
+    final year = now.year;
+    final month = now.month;
+
+    // Gunakan endpoint payslip untuk ambil gaji
+    final url = Uri.parse('$_baseUrl/karyawan/payslip-live/$year/$month');
+    final response = await http
+        .get(
+          url,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+
+    print('Gaji Response: ${response.statusCode}');
+    print('Gaji Body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded['success'] == true && decoded['data'] != null) {
+        setState(() {
+          if (monthlyStats == null) {
+            monthlyStats = {'gaji_bersih': 0, 'cuti_terpakai': 0, 'sisa_cuti': 12, 'izin': 0, 'alpha': 0};
+          }
+          monthlyStats!['gaji_bersih'] = decoded['data']['net_salary'] ?? 0;
+        });
+      }
+    }
+  } catch (e) {
+    print("Error getGajiBulanIni: $e");
+  }
+}
 
   String formatCurrency(dynamic amount) {
     if (amount == null) return 'Rp. 0';
@@ -219,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshData() async {
-    await Future.wait([getUser(), getMonthlyStats()]);
+    await Future.wait([getUser(), getMonthlyStats(),getGajiBulanIni(),]);
   }
 
   @override

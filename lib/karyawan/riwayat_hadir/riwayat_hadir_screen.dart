@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
+import 'package:pdfx/pdfx.dart';
 import 'package:sigma/api/api.dart';
 import 'package:sigma/karyawan/main/bottom_navigation_bar.dart';
 import 'package:sigma/utils/app_color.dart';
@@ -10,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // MODEL LOKAL (SAMA SEPERTI ADMIN)
 class HistoryItem {
@@ -117,9 +119,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final token = await _storage.read(key: 'auth_token');
     try {
       final response = await http.get(
-        Uri.parse(
-          '$_baseUrl/history?year=$selectedYear&month=$selectedMonthNum',
-        ),
+        Uri.parse('$_baseUrl/history'), // ✅ TANPA FILTER, AMBIL SEMUA
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -145,20 +145,67 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final grouped = <String, List<HistoryItem>>{};
 
     for (var item in historyList) {
-      // Validasi: hanya tambahkan item yang sesuai dengan bulan dan tahun yang dipilih
-      final itemDate = item.createdAt.toLocal();
-      if (itemDate.year != selectedYear || itemDate.month != selectedMonthNum) {
-        continue; // Skip item yang tidak sesuai dengan periode yang dipilih
+      if (item.itemType == 'attendance') {
+        // ✅ ATTENDANCE: Proses seperti biasa
+        final itemDate = item.createdAt.toLocal();
+
+        // Validasi bulan dan tahun
+        if (itemDate.year != selectedYear ||
+            itemDate.month != selectedMonthNum) {
+          continue;
+        }
+
+        String dateStr = DateFormat(
+          'EEEE, d MMMM yyyy',
+          'id_ID',
+        ).format(itemDate);
+        grouped.putIfAbsent(dateStr, () => []);
+        grouped[dateStr]!.add(item);
+      } else {
+        // 🔥 LEAVE_REQUEST: Buat entry untuk SETIAP HARI dalam range
+        if (item.startDate == null || item.endDate == null) continue;
+
+        final startDate = item.startDate!.toLocal();
+        final endDate = item.endDate!.toLocal();
+
+        // Loop untuk setiap hari dalam periode cuti/izin
+        for (
+          var date = startDate;
+          date.isBefore(endDate.add(Duration(days: 1)));
+          date = date.add(Duration(days: 1))
+        ) {
+          // Validasi: hanya tambahkan jika sesuai bulan dan tahun yang dipilih
+          if (date.year != selectedYear || date.month != selectedMonthNum) {
+            continue;
+          }
+
+          String dateStr = DateFormat(
+            'EEEE, d MMMM yyyy',
+            'id_ID',
+          ).format(date);
+          grouped.putIfAbsent(dateStr, () => []);
+
+          // Buat item baru untuk setiap hari dengan tanggal yang sesuai
+          final dailyItem = HistoryItem(
+            itemType: item.itemType,
+            createdAt: date, // ✅ Gunakan tanggal spesifik
+            checkInTime: item.checkInTime,
+            checkOutTime: item.checkOutTime,
+            checkInLocation: item.checkInLocation,
+            checkOutLocation: item.checkOutLocation,
+            leaveType: item.leaveType,
+            reason: item.reason,
+            status: item.status,
+            fileProof: item.fileProof,
+            statusCheckIn: item.statusCheckIn,
+            statusCheckOut: item.statusCheckOut,
+            startDate: item.startDate,
+            endDate: item.endDate,
+          );
+
+          grouped[dateStr]!.add(dailyItem);
+        }
       }
-
-      // Gunakan createdAt untuk semua tipe (sudah diatur di model)
-      String dateStr = DateFormat(
-        'EEEE, d MMMM yyyy',
-        'id_ID',
-      ).format(itemDate);
-
-      grouped.putIfAbsent(dateStr, () => []);
-      grouped[dateStr]!.add(item);
     }
 
     if (mounted) setState(() => _groupedHistory = grouped);
@@ -274,9 +321,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       itemBuilder: (context, index) {
                         final monthNum = index + 1;
                         final isSelected = tempMonth == monthNum;
+
+                        // ========== INI YANG DIUBAH ==========
                         final isFuture =
-                            tempYear == DateTime.now().year &&
-                            monthNum > DateTime.now().month;
+                            tempYear >
+                                DateTime.now().year || // BARIS INI DITAMBAHKAN
+                            (tempYear == DateTime.now().year &&
+                                monthNum > DateTime.now().month + 1);
+                        // ====================================
 
                         return InkWell(
                           onTap:
@@ -369,6 +421,174 @@ class _HistoryScreenState extends State<HistoryScreen> {
         }
       });
       _loadHistory();
+    }
+  }
+
+  Future<void> _launchFile(String? filePath) async {
+    if (filePath == null || filePath.isEmpty) {
+      _showSnackBar("File tidak ditemukan.", isError: true);
+      return;
+    }
+
+    final storageBase = baseUrl.replaceAll(RegExp(r'/api$'), '');
+    String cleanPath = filePath
+        .replaceFirst(RegExp(r'^/'), '')
+        .replaceFirst(RegExp(r'^storage/'), '');
+    final pdfUrl = '$storageBase/storage/$cleanPath';
+
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF38B2AC).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.picture_as_pdf,
+                    color: Color(0xFF38B2AC),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Buka File',
+                    style: PoppinsTextStyle.bold.copyWith(fontSize: 18),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              "Ingin membuka lampiran PDF?",
+              style: PoppinsTextStyle.regular.copyWith(fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Batal',
+                  style: PoppinsTextStyle.medium.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF38B2AC),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                child: Text(
+                  'Buka',
+                  style: PoppinsTextStyle.semiBold.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (shouldOpen != true) return;
+
+    try {
+      final response = await http.get(Uri.parse(pdfUrl));
+
+      if (response.statusCode != 200) {
+        _showSnackBar("Gagal mengambil file.", isError: true);
+        return;
+      }
+
+      final bytes = response.bodyBytes;
+      final doc = PdfDocument.openData(bytes);
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) => Scaffold(
+                appBar: AppBar(
+                  elevation: 0,
+                  backgroundColor: Colors.white,
+                  leading: Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.black87,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  title: Text(
+                    "Preview File Bukti",
+                    style: PoppinsTextStyle.bold.copyWith(
+                      color: Colors.black87,
+                      fontSize: 18,
+                    ),
+                  ),
+                  centerTitle: true,
+                  actions: [
+                    // TOMBOL DOWNLOAD
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF38B2AC).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.download_rounded,
+                          color: Color(0xFF38B2AC),
+                          size: 24,
+                        ),
+                        onPressed: () => _downloadPdf(pdfUrl),
+                        tooltip: 'Download PDF',
+                      ),
+                    ),
+                  ],
+                ),
+                body: Container(
+                  color: Colors.grey[200],
+                  child: PdfViewPinch(
+                    controller: PdfControllerPinch(document: doc),
+                  ),
+                ),
+              ),
+        ),
+      );
+    } catch (e) {
+      _showSnackBar("Terjadi kesalahan: $e", isError: true);
+    }
+  }
+
+  Future<void> _downloadPdf(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+      _showSnackBar("Membuka file di browser...", isError: false);
+    } catch (e) {
+      _showSnackBar("Gagal membuka file: $e", isError: true);
     }
   }
 
@@ -817,19 +1037,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             : (startDate != null ? _formatDate(startDate) : '-');
 
     Widget fileActionButton = InkWell(
-      onTap: () {
-        if (fileProof != null && fileProof.isNotEmpty) {
-          _showSnackBar(
-            'Mencoba membuka/mengunduh file bukti...',
-            isError: false,
-          );
-        } else {
-          _showSnackBar(
-            'Tidak ada file bukti yang dilampirkan.',
-            isError: true,
-          );
-        }
-      },
+      onTap: () => _launchFile(fileProof), // UBAH BARIS INI
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(

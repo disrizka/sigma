@@ -109,19 +109,69 @@ class _CutiScreenState extends State<CutiScreen> {
     }
   }
 
-  // 🔥 FUNGSI BARU: MEMILIH FILE
   Future<void> _pickFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx'],
+        allowMultiple: false,
       );
-      if (result != null && result.files.first.path != null) {
+
+      if (result != null && result.files.single.path != null) {
+        File file = File(result.files.single.path!);
+
+        int fileSizeInBytes = await file.length();
+        double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+
+        print("Ukuran file: ${fileSizeInMB.toStringAsFixed(2)} MB");
+
+        // Batasan ukuran: 20MB
+        if (fileSizeInMB > 20) {
+          _showElegantSnackBar(
+            "File terlalu besar (${fileSizeInMB.toStringAsFixed(1)}MB). Maksimal 20MB",
+            isError: true,
+          );
+          return;
+        }
+
+        // Dialog peringatan untuk file > 10MB
+        if (fileSizeInMB > 10) {
+          bool? confirm = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text("⚠️ File Besar"),
+                content: Text(
+                  "Ukuran file: ${fileSizeInMB.toStringAsFixed(1)}MB\n\n"
+                  "Upload file besar mungkin memakan waktu lama dan memerlukan koneksi internet yang stabil.\n\n"
+                  "Lanjutkan?",
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text("Batal"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text("Lanjutkan"),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (confirm != true) {
+            return; // User membatalkan
+          }
+        }
+
         setState(() {
-          _selectedFile = File(result.files.first.path!);
-          _fileName = result.files.first.name;
+          _selectedFile = file;
+          _fileName =
+              "${result.files.single.name} (${fileSizeInMB.toStringAsFixed(1)}MB)";
         });
-        _showElegantSnackBar("File berhasil dipilih: $_fileName");
+
+        _showElegantSnackBar("File berhasil dipilih");
       }
     } catch (e) {
       _showElegantSnackBar(
@@ -506,7 +556,7 @@ class _CutiScreenState extends State<CutiScreen> {
                             _buildFileUploadField(),
 
                             const SizedBox(height: 24),
-                           SizedBox(
+                            SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
                                 onPressed: _isSubmitting ? null : _submitCuti,
