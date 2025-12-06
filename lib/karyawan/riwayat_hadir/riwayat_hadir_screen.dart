@@ -119,7 +119,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final token = await _storage.read(key: 'auth_token');
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/history'), // ✅ TANPA FILTER, AMBIL SEMUA
+        Uri.parse('$_baseUrl/history'), 
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
