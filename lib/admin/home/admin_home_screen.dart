@@ -26,9 +26,9 @@ class PengajuanItem {
   final String alasan;
   final DateTime tanggal;
   final String? fileProof;
-  final DateTime? startDate; // Tambahkan field ini
-  final DateTime? endDate; // Tambahkan field ini
-  final String? location; // Tambahkan field ini
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final String? location;
 
   PengajuanItem({
     required this.id,
