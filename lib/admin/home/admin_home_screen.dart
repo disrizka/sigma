@@ -8,6 +8,7 @@ import 'package:sigma/admin/absensi-karyawan/admin_absensi_list.dart';
 import 'package:sigma/admin/auth/login/login_screen.dart';
 import 'package:sigma/admin/detail-gaji/admin_gaji_karyawan_screen.dart';
 import 'package:sigma/admin/detail-karyawan/admin_detail_karyawan_screen.dart';
+import 'package:sigma/admin/tambah-karyawan/tambah_karyawan_screen.dart';
 import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
@@ -124,10 +125,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     } catch (e) {
       _showError('Terjadi kesalahan koneksi: $e');
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
+      }
     }
   }
 
@@ -218,37 +220,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  Future<void> _addKaryawan(Map<String, String> dataKaryawan) async {
-    final token = await _storage.read(key: 'auth_token');
-    final url = Uri.parse('$_baseUrl/admin/create-employee');
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-        body: dataKaryawan,
-      );
-
-      final data = json.decode(response.body);
-
-      if (response.statusCode == 201) {
-        _showSuccess('Karyawan berhasil ditambahkan!');
-        _loadData();
-      } else {
-        String errorMessage = data['message'] ?? 'Gagal menambah karyawan.';
-        if (data['errors'] != null) {
-          errorMessage = (data['errors'] as Map).values.first[0];
-        }
-        _showError(errorMessage);
-      }
-    } catch (e) {
-      _showError('Terjadi kesalahan koneksi: $e');
-    }
-  }
-
   Future<void> _launchFile(String? filePath) async {
     if (filePath == null || filePath.isEmpty) {
       _showError("File tidak ditemukan.");
@@ -327,7 +298,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     ),
                   ),
                   centerTitle: true,
-                  // TOMBOL DOWNLOAD DITAMBAHKAN DI SINI
                   actions: [
                     Container(
                       margin: const EdgeInsets.only(right: 8),
@@ -699,8 +669,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               iconColor: Colors.blue,
               title: 'Tambah Karyawan',
               subtitle: 'Daftarkan karyawan baru',
-              onTap: () {
-                _showAddKaryawanDialog();
+              onTap: () async {
+                // Navigasi ke halaman tambah karyawan
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AdminTambahKaryawanScreen(),
+                  ),
+                );
+                // Reload data jika berhasil menambah karyawan
+                if (result == true) {
+                  _loadData();
+                }
               },
             ),
             _buildActionCard(
@@ -1289,313 +1269,5 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     } else {
       return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(dt);
     }
-  }
-
-  void _showAddKaryawanDialog() {
-    final nikController = TextEditingController();
-    final namaController = TextEditingController();
-    final passwordController = TextEditingController();
-    final pekerjaanController = TextEditingController();
-    bool isDialogLoading = false;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setDialogState) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  backgroundColor: Colors.white,
-                  elevation: 8,
-                  contentPadding: EdgeInsets.zero,
-                  content: Container(
-                    width: MediaQuery.of(context).size.width * 0.9,
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Header with gradient
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppColor.primaryColor,
-                                AppColor.primaryColor.withOpacity(0.8),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(24),
-                              topRight: Radius.circular(24),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.person_add_rounded,
-                                  color: AppColor.primaryColor,
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Tambah Karyawan',
-                                      style: PoppinsTextStyle.bold.copyWith(
-                                        fontSize: 20,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Lengkapi data karyawan baru',
-                                      style: PoppinsTextStyle.regular.copyWith(
-                                        fontSize: 12,
-                                        color: Colors.white.withOpacity(0.9),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Form Content with Scrollable
-                        Flexible(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildTextFieldDialog(
-                                  controller: nikController,
-                                  label: 'NIK',
-                                  hint: 'Masukkan NIK karyawan',
-                                  icon: Icons.badge_rounded,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildTextFieldDialog(
-                                  controller: namaController,
-                                  label: 'Nama Lengkap',
-                                  hint: 'Masukkan nama lengkap',
-                                  icon: Icons.person_rounded,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildTextFieldDialog(
-                                  controller: passwordController,
-                                  label: 'Password',
-                                  hint: 'Masukkan password',
-                                  icon: Icons.lock_rounded,
-                                  obscureText: true,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildTextFieldDialog(
-                                  controller: pekerjaanController,
-                                  label: 'Pekerjaan',
-                                  hint: 'Masukkan jabatan/posisi',
-                                  icon: Icons.work_rounded,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // Divider
-                        Container(
-                          height: 1,
-                          color: Colors.grey.withOpacity(0.2),
-                        ),
-
-                        // Actions
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.grey[700],
-                                    side: BorderSide(
-                                      color: Colors.grey.withOpacity(0.3),
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Batal',
-                                    style: PoppinsTextStyle.semiBold.copyWith(
-                                      fontSize: 15,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed:
-                                      isDialogLoading
-                                          ? null
-                                          : () async {
-                                            if (nikController.text.isEmpty ||
-                                                namaController.text.isEmpty ||
-                                                passwordController
-                                                    .text
-                                                    .isEmpty ||
-                                                pekerjaanController
-                                                    .text
-                                                    .isEmpty) {
-                                              _showError(
-                                                'Semua field harus diisi!',
-                                              );
-                                              return;
-                                            }
-
-                                            setDialogState(
-                                              () => isDialogLoading = true,
-                                            );
-
-                                            final data = {
-                                              'name': namaController.text,
-                                              'nik': nikController.text,
-                                              'password':
-                                                  passwordController.text,
-                                              'jabatan':
-                                                  pekerjaanController.text,
-                                              'status': 'aktif',
-                                            };
-
-                                            await _addKaryawan(data);
-
-                                            if (mounted) Navigator.pop(context);
-                                          },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColor.primaryColor,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    elevation: 0,
-                                    shadowColor: AppColor.primaryColor
-                                        .withOpacity(0.3),
-                                  ),
-                                  child:
-                                      isDialogLoading
-                                          ? const SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                          : Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              const Icon(
-                                                Icons.check_circle_rounded,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                'Simpan',
-                                                style: PoppinsTextStyle.semiBold
-                                                    .copyWith(fontSize: 15),
-                                              ),
-                                            ],
-                                          ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-          ),
-    );
-  }
-
-  Widget _buildTextFieldDialog({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    bool obscureText = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: PoppinsTextStyle.semiBold.copyWith(
-            fontSize: 13,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          obscureText: obscureText,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: PoppinsTextStyle.regular.copyWith(
-              fontSize: 13,
-              color: Colors.grey[400],
-            ),
-            prefixIcon: Icon(icon, color: AppColor.primaryColor, size: 20),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColor.primaryColor, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
