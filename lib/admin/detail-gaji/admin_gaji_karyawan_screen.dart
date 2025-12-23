@@ -34,7 +34,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     super.initState();
     initializeDateFormatting('id_ID', null).then((_) {
       _initializeBulanOptions();
-      _loadToken(); // Sekarang dipanggil setelah locale ready
+      _loadToken();
     });
   }
 
@@ -191,6 +191,15 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
 
         print('📦 Total slip gaji berhasil dimuat: ${slipGajiList.length}');
 
+        // 🏆 SORTING BERDASARKAN GAJI BERSIH (TERBESAR KE TERKECIL)
+        slipGajiList.sort((a, b) => b.gajiBersih.compareTo(a.gajiBersih));
+        
+        // Debug: Print 3 teratas
+        print('🏆 TOP 3 GAJI:');
+        for (int i = 0; i < (slipGajiList.length > 3 ? 3 : slipGajiList.length); i++) {
+          print('   ${i + 1}. ${slipGajiList[i].namaKaryawan} - Rp ${slipGajiList[i].gajiBersih}');
+        }
+
         setState(() {
           _slipGajiList = slipGajiList;
           _filteredList = slipGajiList;
@@ -217,6 +226,40 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
         _isLoading = false;
       });
       _showError('Error: $e');
+    }
+  }
+
+  // 🏆 FUNGSI UNTUK MENDAPATKAN RANKING
+  int _getRanking(KaryawanSlipGaji item) {
+    int index = _filteredList.indexOf(item);
+    return index + 1;
+  }
+
+  // 🏆 FUNGSI UNTUK MENDAPATKAN WARNA RANKING
+  Color _getRankingColor(int ranking) {
+    switch (ranking) {
+      case 1:
+        return Color(0xFFFFD700); // Gold
+      case 2:
+        return Color(0xFFC0C0C0); // Silver
+      case 3:
+        return Color(0xFFCD7F32); // Bronze
+      default:
+        return Colors.transparent;
+    }
+  }
+
+  // 🏆 FUNGSI UNTUK MENDAPATKAN ICON RANKING
+  IconData _getRankingIcon(int ranking) {
+    switch (ranking) {
+      case 1:
+        return Icons.emoji_events; // Trophy
+      case 2:
+        return Icons.emoji_events;
+      case 3:
+        return Icons.emoji_events;
+      default:
+        return Icons.stars;
     }
   }
 
@@ -252,189 +295,227 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
 
         if (!mounted) return;
 
+        int ranking = _getRanking(item);
+
         showDialog(
           context: context,
-          builder:
-              (context) => Dialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Container(
-                  constraints: const BoxConstraints(maxHeight: 600),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColor.primaryColor,
-                              AppColor.primaryColor.withOpacity(0.8),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(20),
-                            topRight: Radius.circular(20),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            CircleAvatar(
-                              radius: 35,
-                              backgroundColor: Colors.white,
-                              child: Text(
-                                item.namaKaryawan.isNotEmpty
-                                    ? item.namaKaryawan
-                                        .substring(0, 1)
-                                        .toUpperCase()
-                                    : '?',
-                                style: PoppinsTextStyle.bold.copyWith(
-                                  fontSize: 28,
-                                  color: AppColor.primaryColor,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              item.namaKaryawan,
-                              style: PoppinsTextStyle.bold.copyWith(
-                                fontSize: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'NIK: ${item.nik} • ${item.jabatan}',
-                              style: PoppinsTextStyle.regular.copyWith(
-                                fontSize: 12,
-                                color: Colors.white.withOpacity(0.9),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    'Gaji Bersih',
-                                    style: PoppinsTextStyle.regular.copyWith(
-                                      fontSize: 12,
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _formatCurrency(item.gajiBersih),
-                                    style: PoppinsTextStyle.bold.copyWith(
-                                      fontSize: 22,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+          builder: (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 600),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColor.primaryColor,
+                          AppColor.primaryColor.withOpacity(0.8),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      // Detail Body
-                      Flexible(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(20),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // 🏆 RANKING BADGE (di atas avatar)
+                        if (ranking <= 3)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getRankingColor(ranking),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _getRankingColor(ranking).withOpacity(0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getRankingIcon(ranking),
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Ranking #$ranking',
+                                  style: PoppinsTextStyle.bold.copyWith(
+                                    fontSize: 13,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        CircleAvatar(
+                          radius: 35,
+                          backgroundColor: Colors.white,
+                          child: Text(
+                            item.namaKaryawan.isNotEmpty
+                                ? item.namaKaryawan
+                                    .substring(0, 1)
+                                    .toUpperCase()
+                                : '?',
+                            style: PoppinsTextStyle.bold.copyWith(
+                              fontSize: 28,
+                              color: AppColor.primaryColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          item.namaKaryawan,
+                          style: PoppinsTextStyle.bold.copyWith(
+                            fontSize: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'NIK: ${item.nik} • ${item.jabatan}',
+                          style: PoppinsTextStyle.regular.copyWith(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildDetailSection(
-                                'Pendapatan',
-                                Icons.add_circle_outline,
-                                Colors.green,
-                                [
-                                  DetailRow('Gaji Pokok', item.gajiPokok),
-                                  DetailRow('Total Tunjangan', item.tunjangan),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _buildDetailSection(
-                                'Potongan',
-                                Icons.remove_circle_outline,
-                                Colors.red,
-                                [
-                                  DetailRow('Potongan Harian', item.potongan),
-                                  if (item.pajak > 0)
-                                    DetailRow('Pajak Bulanan', item.pajak),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue[50],
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.blue[200]!),
+                              Text(
+                                'Gaji Bersih',
+                                style: PoppinsTextStyle.regular.copyWith(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.9),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      color: Colors.blue[700],
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Periode: $_selectedBulan\n${item.pajak > 0 ? "Pajak sudah dipotong (akhir bulan)" : "Pajak belum dipotong (belum akhir bulan)"}',
-                                        style: PoppinsTextStyle.regular
-                                            .copyWith(
-                                              fontSize: 11,
-                                              color: Colors.blue[900],
-                                            ),
-                                      ),
-                                    ),
-                                  ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _formatCurrency(item.gajiBersih),
+                                style: PoppinsTextStyle.bold.copyWith(
+                                  fontSize: 22,
+                                  color: Colors.white,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                  // Detail Body
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildDetailSection(
+                            'Pendapatan',
+                            Icons.add_circle_outline,
+                            Colors.green,
+                            [
+                              DetailRow('Gaji Pokok', item.gajiPokok),
+                              DetailRow('Total Tunjangan', item.tunjangan),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _buildDetailSection(
+                            'Potongan',
+                            Icons.remove_circle_outline,
+                            Colors.red,
+                            [
+                              DetailRow('Potongan Harian', item.potongan),
+                              if (item.pajak > 0)
+                                DetailRow('Pajak Bulanan', item.pajak),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Colors.blue[700],
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Periode: $_selectedBulan\n${item.pajak > 0 ? "Pajak sudah dipotong (akhir bulan)" : "Pajak belum dipotong (belum akhir bulan)"}',
+                                    style: PoppinsTextStyle.regular.copyWith(
+                                      fontSize: 11,
+                                      color: Colors.blue[900],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      // Footer Button
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColor.primaryColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Tutup',
-                              style: PoppinsTextStyle.semiBold.copyWith(
-                                fontSize: 14,
-                              ),
-                            ),
+                    ),
+                  ),
+                  // Footer Button
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColor.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Tutup',
+                          style: PoppinsTextStyle.semiBold.copyWith(
+                            fontSize: 14,
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
+            ),
+          ),
         );
       } else {
         _showError('Gagal memuat detail: Status ${response.statusCode}');
@@ -457,14 +538,22 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       if (query.isEmpty) {
         _filteredList = _slipGajiList;
       } else {
-        _filteredList =
-            _slipGajiList.where((item) {
-              return item.namaKaryawan.toLowerCase().contains(
-                    query.toLowerCase(),
-                  ) ||
-                  item.nik.toLowerCase().contains(query.toLowerCase()) ||
-                  item.jabatan.toLowerCase().contains(query.toLowerCase());
-            }).toList();
+        _filteredList = _slipGajiList.where((item) {
+          return item.namaKaryawan.toLowerCase().contains(
+                query.toLowerCase(),
+              ) ||
+              item.nik.toLowerCase().contains(query.toLowerCase()) ||
+              item.jabatan.toLowerCase().contains(query.toLowerCase());
+        }).toList();
+      }
+      
+      // 🏆 PASTIKAN TETAP SORTED SETELAH FILTER
+      _filteredList.sort((a, b) => b.gajiBersih.compareTo(a.gajiBersih));
+      
+      // Debug filtered list
+      print('🔍 Filtered list count: ${_filteredList.length}');
+      if (_filteredList.isNotEmpty) {
+        print('   Top 1: ${_filteredList[0].namaKaryawan} - Rp ${_filteredList[0].gajiBersih}');
       }
     });
   }
@@ -530,31 +619,30 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children:
-                rows.map((row) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          row.label,
-                          style: PoppinsTextStyle.regular.copyWith(
-                            fontSize: 12,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        Text(
-                          _formatCurrency(row.amount),
-                          style: PoppinsTextStyle.semiBold.copyWith(
-                            fontSize: 12,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ],
+            children: rows.map((row) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      row.label,
+                      style: PoppinsTextStyle.regular.copyWith(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                      ),
                     ),
-                  );
-                }).toList(),
+                    Text(
+                      _formatCurrency(row.amount),
+                      style: PoppinsTextStyle.semiBold.copyWith(
+                        fontSize: 12,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ),
         ),
       ],
@@ -591,19 +679,18 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
         children: [
           _buildHeaderSection(),
           Expanded(
-            child:
-                _isLoading
-                    ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text('Memuat data...'),
-                        ],
-                      ),
-                    )
-                    : _filteredList.isEmpty
+            child: _isLoading
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Memuat data...'),
+                      ],
+                    ),
+                  )
+                : _filteredList.isEmpty
                     ? _buildEmptyState()
                     : _buildSlipGajiList(),
           ),
@@ -634,13 +721,12 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                 fontSize: 14,
                 color: AppColor.primaryColor,
               ),
-              items:
-                  _bulanOptions.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+              items: _bulanOptions.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
               onChanged: (String? newValue) {
                 if (newValue != null) {
                   setState(() {
@@ -662,16 +748,15 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                 color: Colors.grey[400],
               ),
               prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-              suffixIcon:
-                  _searchController.text.isNotEmpty
-                      ? IconButton(
-                        icon: Icon(Icons.clear, color: Colors.grey[400]),
-                        onPressed: () {
-                          _searchController.clear();
-                          _filterSearch('');
-                        },
-                      )
-                      : null,
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear, color: Colors.grey[400]),
+                      onPressed: () {
+                        _searchController.clear();
+                        _filterSearch('');
+                      },
+                    )
+                  : null,
               filled: true,
               fillColor: Colors.grey[100],
               border: OutlineInputBorder(
@@ -762,22 +847,29 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       itemCount: _filteredList.length,
       itemBuilder: (context, index) {
         final item = _filteredList[index];
-        return _buildSlipGajiCard(item);
+        return _buildSlipGajiCard(item, index + 1);
       },
     );
   }
 
-  Widget _buildSlipGajiCard(KaryawanSlipGaji item) {
+  Widget _buildSlipGajiCard(KaryawanSlipGaji item, int ranking) {
+    bool isTopThree = ranking <= 3;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isTopThree ? _getRankingColor(ranking) : Colors.grey[200]!,
+          width: isTopThree ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
+            color: isTopThree
+                ? _getRankingColor(ranking).withOpacity(0.3)
+                : Colors.grey.withOpacity(0.1),
+            blurRadius: isTopThree ? 15 : 10,
             offset: const Offset(0, 2),
           ),
         ],
@@ -793,6 +885,33 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               children: [
                 Row(
                   children: [
+                    // 🏆 RANKING BADGE (kiri avatar)
+                    if (isTopThree)
+                      Container(
+                        width: 36,
+                        height: 36,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: _getRankingColor(ranking),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _getRankingColor(ranking).withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            '#$ranking',
+                            style: PoppinsTextStyle.bold.copyWith(
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
                     CircleAvatar(
                       radius: 28,
                       backgroundColor: AppColor.primaryColor.withOpacity(0.1),
@@ -887,18 +1006,32 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColor.primaryColor,
+                    color: isTopThree
+                        ? _getRankingColor(ranking)
+                        : AppColor.primaryColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Gaji Bersih',
-                        style: PoppinsTextStyle.semiBold.copyWith(
-                          fontSize: 13,
-                          color: Colors.white,
-                        ),
+                      Row(
+                        children: [
+                          if (isTopThree) ...[
+                            Icon(
+                              _getRankingIcon(ranking),
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Text(
+                            'Gaji Bersih',
+                            style: PoppinsTextStyle.semiBold.copyWith(
+                              fontSize: 13,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
                         _formatCurrency(item.gajiBersih),
