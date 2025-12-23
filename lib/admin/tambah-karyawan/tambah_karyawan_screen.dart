@@ -19,25 +19,93 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
   final String _baseUrl = '$baseUrl/api';
 
   final _formKey = GlobalKey<FormState>();
-  final _nikController = TextEditingController();
   final _namaController = TextEditingController();
   final _passwordController = TextEditingController();
   final _pekerjaanController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isLoadingNIK = true;
   bool _obscurePassword = true;
+  String _generatedNIK = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _generateNextNIK();
+  }
 
   @override
   void dispose() {
-    _nikController.dispose();
     _namaController.dispose();
     _passwordController.dispose();
     _pekerjaanController.dispose();
     super.dispose();
   }
 
+  Future<void> _generateNextNIK() async {
+    setState(() => _isLoadingNIK = true);
+
+    final token = await _storage.read(key: 'auth_token');
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/admin/employees'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> employees = json.decode(response.body);
+
+        // Cari NIK terakhir dengan format TWSGT317401XXXX
+        int maxNumber = 0;
+        for (var employee in employees) {
+          String nik = employee['nik'] ?? '';
+          if (nik.startsWith('TWSGT317401')) {
+            // Ambil 4 digit terakhir
+            String lastFourDigits = nik.substring(nik.length - 4);
+            int number = int.tryParse(lastFourDigits) ?? 0;
+            if (number > maxNumber) {
+              maxNumber = number;
+            }
+          }
+        }
+
+        // Generate NIK baru (increment dari yang terakhir)
+        int nextNumber = maxNumber + 1;
+        String nikNumber = nextNumber.toString().padLeft(4, '0');
+
+        setState(() {
+          _generatedNIK = 'TWSGT317401$nikNumber';
+          _isLoadingNIK = false;
+        });
+      } else {
+        // Jika gagal, mulai dari 0001
+        setState(() {
+          _generatedNIK = 'TWSGT3174010001';
+          _isLoadingNIK = false;
+        });
+      }
+    } catch (e) {
+      // Jika error, mulai dari 0001
+      setState(() {
+        _generatedNIK = 'TWSGT3174010001';
+        _isLoadingNIK = false;
+      });
+    }
+  }
+
   Future<void> _addKaryawan() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_generatedNIK.isEmpty) {
+      _showError('NIK belum di-generate. Silakan coba lagi.');
       return;
     }
 
@@ -55,7 +123,7 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
         },
         body: {
           'name': _namaController.text.trim(),
-          'nik': _nikController.text.trim(),
+          'nik': _generatedNIK,
           'password': _passwordController.text,
           'jabatan': _pekerjaanController.text.trim(),
           'status': 'aktif',
@@ -67,7 +135,6 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
       if (response.statusCode == 201) {
         if (mounted) {
           _showSuccess('Karyawan berhasil ditambahkan!');
-          // Kembali ke halaman sebelumnya dengan result true
           Navigator.pop(context, true);
         }
       } else {
@@ -143,220 +210,372 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColor.primaryColor,
-                      AppColor.primaryColor.withOpacity(0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColor.primaryColor.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
+      body:
+          _isLoadingNIK
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.person_add_rounded,
-                        color: AppColor.primaryColor,
-                        size: 32,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Tambah Karyawan Baru',
-                            style: PoppinsTextStyle.bold.copyWith(
-                              fontSize: 18,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Lengkapi semua informasi dengan benar',
-                            style: PoppinsTextStyle.regular.copyWith(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Mempersiapkan NIK...',
+                      style: PoppinsTextStyle.medium.copyWith(
+                        fontSize: 14,
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
                 ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Form Fields
-              _buildTextField(
-                controller: _nikController,
-                label: 'NIK',
-                hint: 'Masukkan NIK karyawan',
-                icon: Icons.badge_rounded,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'NIK tidak boleh kosong';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              _buildTextField(
-                controller: _namaController,
-                label: 'Nama Lengkap',
-                hint: 'Masukkan nama lengkap',
-                icon: Icons.person_rounded,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Nama tidak boleh kosong';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              _buildTextField(
-                controller: _passwordController,
-                label: 'Password',
-                hint: 'Masukkan password',
-                icon: Icons.lock_rounded,
-                obscureText: _obscurePassword,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Password tidak boleh kosong';
-                  }
-                  if (value.length < 6) {
-                    return 'Password minimal 6 karakter';
-                  }
-                  return null;
-                },
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey[600],
-                  ),
-                  onPressed: () {
-                    setState(() => _obscurePassword = !_obscurePassword);
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              _buildTextField(
-                controller: _pekerjaanController,
-                label: 'Jabatan/Posisi',
-                hint: 'Masukkan jabatan atau posisi',
-                icon: Icons.work_rounded,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Jabatan tidak boleh kosong';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 32),
-
-              // Submit Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _addKaryawan,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColor.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                    shadowColor: AppColor.primaryColor.withOpacity(0.3),
-                  ),
-                  child:
-                      _isLoading
-                          ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
+              )
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Card
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColor.primaryColor,
+                              AppColor.primaryColor.withOpacity(0.8),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColor.primaryColor.withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
                             ),
-                          )
-                          : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.check_circle_rounded, size: 24),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Simpan Karyawan',
-                                style: PoppinsTextStyle.bold.copyWith(
-                                  fontSize: 16,
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.person_add_rounded,
+                                color: AppColor.primaryColor,
+                                size: 32,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Tambah Karyawan Baru',
+                                    style: PoppinsTextStyle.bold.copyWith(
+                                      fontSize: 18,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Lengkapi semua informasi dengan benar',
+                                    style: PoppinsTextStyle.regular.copyWith(
+                                      fontSize: 12,
+                                      color: Colors.white.withOpacity(0.9),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // NIK Display Card (Read-only, Auto-generated)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.green.shade200,
+                            width: 2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.badge_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'NIK (Nomor Induk Karyawan)',
+                                        style: PoppinsTextStyle.semiBold
+                                            .copyWith(
+                                              fontSize: 12,
+                                              color: Colors.green.shade900,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Otomatis dibuat oleh sistem',
+                                        style: PoppinsTextStyle.regular
+                                            .copyWith(
+                                              fontSize: 10,
+                                              color: Colors.green.shade700,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.green.shade300,
                                 ),
                               ),
-                            ],
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _generatedNIK,
+                                    style: PoppinsTextStyle.bold.copyWith(
+                                      fontSize: 18,
+                                      color: Colors.green.shade900,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'AUTO',
+                                      style: PoppinsTextStyle.bold.copyWith(
+                                        fontSize: 10,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Form Fields
+                      _buildTextField(
+                        controller: _namaController,
+                        label: 'Nama Lengkap',
+                        hint: 'Masukkan nama lengkap',
+                        icon: Icons.person_rounded,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nama tidak boleh kosong';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      _buildTextField(
+                        controller: _passwordController,
+                        label: 'Password',
+                        hint: 'Masukkan password',
+                        icon: Icons.lock_rounded,
+                        obscureText: _obscurePassword,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Password tidak boleh kosong';
+                          }
+                          if (value.length < 6) {
+                            return 'Password minimal 6 karakter';
+                          }
+                          return null;
+                        },
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.grey[600],
                           ),
+                          onPressed: () {
+                            setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      _buildTextField(
+                        controller: _pekerjaanController,
+                        label: 'Jabatan/Posisi',
+                        hint: 'Masukkan jabatan atau posisi',
+                        icon: Icons.work_rounded,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Jabatan tidak boleh kosong';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Info Box
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'NIK akan digunakan untuk login karyawan bersama dengan password',
+                                style: PoppinsTextStyle.regular.copyWith(
+                                  fontSize: 11,
+                                  color: Colors.blue.shade900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Submit Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _addKaryawan,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColor.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                            shadowColor: AppColor.primaryColor.withOpacity(0.3),
+                          ),
+                          child:
+                              _isLoading
+                                  ? const SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                  : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.check_circle_rounded,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Simpan Karyawan',
+                                        style: PoppinsTextStyle.bold.copyWith(
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Cancel Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed:
+                              _isLoading ? null : () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            side: BorderSide(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            'Batal',
+                            style: PoppinsTextStyle.semiBold.copyWith(
+                              fontSize: 16,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // Cancel Button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _isLoading ? null : () => Navigator.pop(context),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[700],
-                    side: BorderSide(color: Colors.grey.withOpacity(0.3)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(
-                    'Batal',
-                    style: PoppinsTextStyle.semiBold.copyWith(
-                      fontSize: 16,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
