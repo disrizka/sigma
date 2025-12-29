@@ -33,6 +33,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
   bool _isLoadingChart = false;
   int _selectedYear = DateTime.now().year;
   List<int> _availableYears = [];
+  List<Map<String, dynamic>> _topThreeYearly = [];
+  bool _isLoadingTopThree = false;
 
   @override
   void initState() {
@@ -42,6 +44,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       _loadToken();
       _loadYearlyData();
       _initializeYearOptions();
+      _loadTopThreeYearly();
     });
   }
 
@@ -339,6 +342,102 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       print('Error loading yearly data: $e');
       setState(() {
         _isLoadingChart = false;
+      });
+    }
+  }
+
+  Future<void> _loadTopThreeYearly() async {
+    final token = await _storage.read(key: 'auth_token');
+    if (token == null) return;
+
+    setState(() {
+      _isLoadingTopThree = true;
+    });
+
+    try {
+      Map<int, Map<String, dynamic>> employeeSalaryMap = {};
+
+      // Get employees
+      final employeesResponse = await http
+          .get(
+            Uri.parse('$_baseUrl/employees'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (employeesResponse.statusCode == 200) {
+        List<dynamic> employees = json.decode(employeesResponse.body);
+
+        // Loop semua karyawan
+        for (var employee in employees) {
+          int totalYearlySalary = 0;
+
+          // Loop 12 bulan
+          for (int month = 1; month <= 12; month++) {
+            try {
+              final payslipResponse = await http
+                  .get(
+                    Uri.parse(
+                      '$_baseUrl/payslip-live/${employee['id']}/$_selectedYear/$month',
+                    ),
+                    headers: {
+                      'Authorization': 'Bearer $token',
+                      'Accept': 'application/json',
+                    },
+                  )
+                  .timeout(const Duration(seconds: 10));
+
+              if (payslipResponse.statusCode == 200) {
+                var responseData = json.decode(payslipResponse.body);
+                var payslipData = responseData['data'];
+
+                int gajiPokok = _parseToInt(payslipData['total_basic_salary']);
+                int tunjangan = _parseToInt(payslipData['total_allowance']);
+                int potongan = _parseToInt(payslipData['total_deduction']);
+                int pajak = _parseToInt(payslipData['tax']);
+
+                int gajiBersih = gajiPokok + tunjangan - potongan - pajak;
+                totalYearlySalary += gajiBersih;
+              }
+            } catch (e) {
+              print('Skip month $month for ${employee['name']}');
+            }
+          }
+
+          // Simpan data karyawan
+          if (totalYearlySalary > 0) {
+            employeeSalaryMap[employee['id']] = {
+              'id': employee['id'],
+              'name': employee['name'],
+              'nik': employee['nik'],
+              'jabatan': employee['jabatan'],
+              'totalSalary': totalYearlySalary,
+            };
+          }
+        }
+
+        // Sort dan ambil top 3
+        List<Map<String, dynamic>> sortedList =
+            employeeSalaryMap.values.toList();
+        sortedList.sort(
+          (a, b) =>
+              (b['totalSalary'] as int).compareTo(a['totalSalary'] as int),
+        );
+
+        setState(() {
+          _topThreeYearly = sortedList.take(3).toList();
+          _isLoadingTopThree = false;
+        });
+
+        print('🏆 Top 3 Tahunan berhasil dimuat: ${_topThreeYearly.length}');
+      }
+    } catch (e) {
+      print('Error loading top three yearly: $e');
+      setState(() {
+        _isLoadingTopThree = false;
       });
     }
   }
@@ -703,6 +802,247 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     );
   }
 
+  void _showTopThreeDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 500),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColor.primaryColor,
+                          AppColor.primaryColor.withOpacity(0.8),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.emoji_events, color: Colors.amber, size: 32),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Top 3 Gaji Tertinggi',
+                                style: PoppinsTextStyle.bold.copyWith(
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'Total Tahunan $_selectedYear',
+                                style: PoppinsTextStyle.regular.copyWith(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Body
+                  _isLoadingTopThree
+                      ? Container(
+                        height: 200,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                      : _topThreeYearly.isEmpty
+                      ? Container(
+                        height: 200,
+                        child: Center(
+                          child: Text(
+                            'Belum ada data',
+                            style: PoppinsTextStyle.regular.copyWith(
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      )
+                      : Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.all(20),
+                          itemCount: _topThreeYearly.length,
+                          itemBuilder: (context, index) {
+                            final item = _topThreeYearly[index];
+                            final ranking = index + 1;
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: _getRankingColor(ranking),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _getRankingColor(
+                                      ranking,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  // Ranking Badge
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: _getRankingColor(ranking),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          _getRankingIcon(ranking),
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        Text(
+                                          '#$ranking',
+                                          style: PoppinsTextStyle.bold.copyWith(
+                                            fontSize: 11,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Info
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item['name'] ?? 'Unknown',
+                                          style: PoppinsTextStyle.bold.copyWith(
+                                            fontSize: 15,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'NIK: ${item['nik'] ?? '-'}',
+                                          style: PoppinsTextStyle.regular
+                                              .copyWith(
+                                                fontSize: 11,
+                                                color: Colors.grey[600],
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            item['jabatan'] ?? '-',
+                                            style: PoppinsTextStyle.medium
+                                                .copyWith(
+                                                  fontSize: 10,
+                                                  color: Colors.blue,
+                                                ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _getRankingColor(ranking),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _formatCurrency(
+                                              item['totalSalary'],
+                                            ),
+                                            style: PoppinsTextStyle.bold
+                                                .copyWith(
+                                                  fontSize: 14,
+                                                  color: Colors.white,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  // Footer
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColor.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Tutup',
+                          style: PoppinsTextStyle.semiBold.copyWith(
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
   Widget _buildDetailSection(
     String title,
     IconData icon,
@@ -796,6 +1136,38 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
             fontSize: 20,
           ),
         ),
+        actions: [
+          // TAMBAH ICON PIALA DI SINI
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.emoji_events,
+                  color: Colors.amber[700],
+                  size: 28,
+                ),
+                onPressed: _showTopThreeDialog,
+                tooltip: 'Top 3 Gaji Tahunan',
+              ),
+              if (_isLoadingTopThree)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.amber[700]!,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body:
           _isLoading
@@ -917,7 +1289,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                       setState(() {
                         _selectedYear = newYear;
                       });
-                      _loadYearlyData(); // Reload data dengan tahun baru
+                      _loadYearlyData();
+                      _loadTopThreeYearly();
                     }
                   },
                 ),
