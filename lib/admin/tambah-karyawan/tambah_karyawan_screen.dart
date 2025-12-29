@@ -61,13 +61,13 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
       if (response.statusCode == 200) {
         final List<dynamic> employees = json.decode(response.body);
 
-        // Cari NIK terakhir dengan format TWSGT317401XXXX
+        // Cari NIK terakhir dengan format TWSXXXX
         int maxNumber = 0;
         for (var employee in employees) {
           String nik = employee['nik'] ?? '';
-          if (nik.startsWith('TWSGT317401')) {
+          if (nik.startsWith('TWS')) {
             // Ambil 4 digit terakhir
-            String lastFourDigits = nik.substring(nik.length - 4);
+            String lastFourDigits = nik.substring(3); // Ambil setelah "TWS"
             int number = int.tryParse(lastFourDigits) ?? 0;
             if (number > maxNumber) {
               maxNumber = number;
@@ -80,20 +80,20 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
         String nikNumber = nextNumber.toString().padLeft(4, '0');
 
         setState(() {
-          _generatedNIK = 'TWSGT317401$nikNumber';
+          _generatedNIK = 'TWS$nikNumber';
           _isLoadingNIK = false;
         });
       } else {
         // Jika gagal, mulai dari 0001
         setState(() {
-          _generatedNIK = 'TWSGT3174010001';
+          _generatedNIK = 'TWS0001';
           _isLoadingNIK = false;
         });
       }
     } catch (e) {
       // Jika error, mulai dari 0001
       setState(() {
-        _generatedNIK = 'TWSGT3174010001';
+        _generatedNIK = 'TWS0001';
         _isLoadingNIK = false;
       });
     }

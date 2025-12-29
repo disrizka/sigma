@@ -7,7 +7,7 @@ import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
 
-// Model untuk menampung data user dari API
+// Model User
 class UserModel {
   final int id;
   final String name;
@@ -52,13 +52,10 @@ class _AdminListAbsensiKaryawanScreenState
     _fetchEmployees();
   }
 
-  // --- FUNGSI-FUNGSI LOGIKA & API ---
-
+  // API Logic
   Future<void> _fetchEmployees() async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
     final token = await _storage.read(key: 'auth_token');
 
     try {
@@ -85,10 +82,7 @@ class _AdminListAbsensiKaryawanScreenState
     } catch (e) {
       _showSnackBar('Terjadi kesalahan: $e', isError: true);
     } finally {
-      if (mounted)
-        setState(() {
-          _isLoading = false;
-        });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -105,147 +99,141 @@ class _AdminListAbsensiKaryawanScreenState
     );
   }
 
-  // --- UI WIDGETS ---
-
+  // UI Build
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: AppColor.backgroundColor,
-        elevation: 0,
-        toolbarHeight: 100,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Absensi Karyawan',
-          style: PoppinsTextStyle.bold.copyWith(
-            color: Colors.black,
-            fontSize: 20,
-          ),
-        ),
-      ),
+      backgroundColor: const Color(0xFFF8F9FD),
+      appBar: _buildAppBar(),
       body: Column(
         children: [
-          // Header Section dengan Info Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(color: Colors.white),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey[300]!, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColor.primaryColor,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.groups_rounded,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Total Karyawan',
-                          style: PoppinsTextStyle.medium.copyWith(
-                            fontSize: 14,
-                            color: const Color.fromARGB(255, 0, 0, 0),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_employees.length}',
-                          style: PoppinsTextStyle.bold.copyWith(
-                            fontSize: 28,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: AppColor.primaryColor,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Aktif',
-                          style: PoppinsTextStyle.semiBold.copyWith(
-                            fontSize: 12,
-                            color: const Color.fromARGB(255, 0, 0, 0),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // List Section
+          _buildHeaderCard(),
           Expanded(
-            child:
-                _isLoading
-                    ? const Center(
-                      child: CircularProgressIndicator(color: Colors.black87),
-                    )
-                    : _employees.isEmpty
+            child: _isLoading
+                ? _buildLoadingState()
+                : _employees.isEmpty
                     ? _buildEmptyState()
-                    : RefreshIndicator(
-                      onRefresh: _fetchEmployees,
-                      color: Colors.black87,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: _employees.length,
-                        itemBuilder: (context, index) {
-                          final employee = _employees[index];
-                          return _buildEmployeeCard(employee, index);
-                        },
-                      ),
-                    ),
+                    : _buildEmployeeList(),
           ),
         ],
       ),
     );
   }
 
+  // AppBar
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      toolbarHeight: 70,
+      centerTitle: true,
+      leading: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+        ),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Text(
+        'Absensi Karyawan',
+        style: PoppinsTextStyle.bold.copyWith(
+          color: Colors.black87,
+          fontSize: 20,
+        ),
+      ),
+    );
+  }
+
+  // Header Card dengan Gradient
+  Widget _buildHeaderCard() {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColor.primaryColor, AppColor.primaryColor.withOpacity(0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColor.primaryColor.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.groups_rounded, color: Colors.white, size: 36),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Karyawan',
+                  style: PoppinsTextStyle.medium.copyWith(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_employees.length}',
+                  style: PoppinsTextStyle.bold.copyWith(
+                    fontSize: 32,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  'Aktif',
+                  style: PoppinsTextStyle.semiBold.copyWith(
+                    fontSize: 13,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Loading State
+  Widget _buildLoadingState() {
+    return const Center(
+      child: CircularProgressIndicator(color: Colors.black87),
+    );
+  }
+
+  // Empty State
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -257,41 +245,44 @@ class _AdminListAbsensiKaryawanScreenState
               color: Colors.grey[100],
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.people_outline,
-              size: 80,
-              color: Colors.grey[400],
-            ),
+            child: Icon(Icons.people_outline, size: 80, color: Colors.grey[400]),
           ),
           const SizedBox(height: 24),
           Text(
             'Belum Ada Data Karyawan',
-            style: PoppinsTextStyle.bold.copyWith(
-              fontSize: 18,
-              color: Colors.black87,
-            ),
+            style: PoppinsTextStyle.bold.copyWith(fontSize: 18, color: Colors.black87),
           ),
           const SizedBox(height: 8),
           Text(
             'Data karyawan akan muncul di sini',
-            style: PoppinsTextStyle.regular.copyWith(
-              fontSize: 14,
-              color: const Color.fromARGB(255, 0, 0, 0),
-            ),
+            style: PoppinsTextStyle.regular.copyWith(fontSize: 14, color: Colors.grey),
           ),
         ],
       ),
     );
   }
 
+  // Employee List
+  Widget _buildEmployeeList() {
+    return RefreshIndicator(
+      onRefresh: _fetchEmployees,
+      color: AppColor.primaryColor,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        itemCount: _employees.length,
+        itemBuilder: (context, index) => _buildEmployeeCard(_employees[index], index),
+      ),
+    );
+  }
+
+  // Employee Card - Desain Profesional dengan Layout Terstruktur
   Widget _buildEmployeeCard(UserModel employee, int index) {
-    // Warna avatar berdasarkan index (nuansa abu-abu)
     final colors = [
-      const Color(0xFF00C853), // hijau segar
-      const Color(0xFF0091EA), // biru cerah
-      const Color(0xFF607D8B), // abu kebiruan netral
-      const Color(0xFFAD1457), // merah keunguan lembut
-      const Color(0xFF00ACC1), // biru toska lembut
+      const Color(0xFF2563EB), // Professional Blue
+      const Color(0xFF7C3AED), // Professional Purple
+      const Color(0xFF059669), // Professional Green
+      const Color(0xFFDC2626), // Professional Red
+      const Color(0xFFEA580C), // Professional Orange
     ];
     final avatarColor = colors[index % colors.length];
 
@@ -299,13 +290,13 @@ class _AdminListAbsensiKaryawanScreenState
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey[300]!, width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color.fromARGB(255, 0, 0, 0).withOpacity(0.1),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 10,
-            offset: const Offset(0, 4),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -316,32 +307,29 @@ class _AdminListAbsensiKaryawanScreenState
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder:
-                    (context) => AdminEmployeeHistoryScreen(
-                      userId: employee.id,
-                      userName: employee.name,
-                    ),
+                builder: (context) => AdminEmployeeHistoryScreen(
+                  userId: employee.id,
+                  userName: employee.name,
+                ),
               ),
             );
           },
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                // Avatar
+                // Avatar Profesional
                 Container(
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
                     color: avatarColor,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
                     child: Text(
-                      employee.name.isNotEmpty
-                          ? employee.name[0].toUpperCase()
-                          : '?',
+                      employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
                       style: PoppinsTextStyle.bold.copyWith(
                         fontSize: 24,
                         color: Colors.white,
@@ -350,89 +338,53 @@ class _AdminListAbsensiKaryawanScreenState
                   ),
                 ),
                 const SizedBox(width: 16),
-
-                // Info
+                // Info Section - Structured Layout
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Nama Karyawan
                       Text(
                         employee.name,
-                        style: PoppinsTextStyle.semiBold.copyWith(
+                        style: PoppinsTextStyle.bold.copyWith(
                           fontSize: 16,
                           color: Colors.black87,
+                          letterSpacing: -0.3,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.grey[300]!),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.badge_outlined,
-                                  size: 14,
-                                  color: AppColor.primaryColor,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  employee.nik,
-                                  style: PoppinsTextStyle.medium.copyWith(
-                                    fontSize: 12,
-                                    color: const Color.fromARGB(255, 0, 0, 0),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.grey[300]!),
-                              ),
-                              child: Text(
-                                employee.jabatan,
-                                style: PoppinsTextStyle.medium.copyWith(
-                                  fontSize: 11,
-                                  color: const Color.fromARGB(255, 0, 0, 0),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 12),
+                      // NIK Row
+                      _buildInfoRow(
+                        icon: Icons.badge_outlined,
+                        label: 'NIK',
+                        value: employee.nik,
+                        color: const Color(0xFF64748B),
+                      ),
+                      const SizedBox(height: 8),
+                      // Jabatan Row
+                      _buildInfoRow(
+                        icon: Icons.work_outline_rounded,
+                        label: 'Jabatan',
+                        value: employee.jabatan,
+                        color: avatarColor,
                       ),
                     ],
                   ),
                 ),
-
-                // Arrow Icon
+                const SizedBox(width: 12),
+                // Arrow dengan Background
                 Container(
-                  padding: const EdgeInsets.all(10),
-
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 16,
-                    color: const Color.fromARGB(255, 0, 0, 0),
+                    color: Colors.grey[600],
                   ),
                 ),
               ],
@@ -440,6 +392,39 @@ class _AdminListAbsensiKaryawanScreenState
           ),
         ),
       ),
+    );
+  }
+
+  // Info Row Component - Format Label: Value
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: PoppinsTextStyle.medium.copyWith(
+            fontSize: 13,
+            color: Colors.grey[600],
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: PoppinsTextStyle.semiBold.copyWith(
+              fontSize: 13,
+              color: Colors.black87,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

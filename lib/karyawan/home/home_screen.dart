@@ -46,8 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     updateTime();
     getUser();
-    getMonthlyStats();
-    getGajiBulanIni(); //
+    getMonthlyStats(); // Ini sudah include semua data
     timer = Timer.periodic(
       const Duration(seconds: 1),
       (Timer t) => updateTime(),
@@ -122,11 +121,15 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Gunakan endpoint baru
-      final url = Uri.parse('$_baseUrl/karyawan/monthly-stats');
-      final response = await http
+      final now = DateTime.now();
+      final year = now.year;
+      final month = now.month;
+
+      // 🔥 AMBIL STATISTIK BULANAN
+      final statsUrl = Uri.parse('$_baseUrl/karyawan/monthly-stats');
+      final statsResponse = await http
           .get(
-            url,
+            statsUrl,
             headers: {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',
@@ -134,83 +137,115 @@ class _HomeScreenState extends State<HomeScreen> {
           )
           .timeout(const Duration(seconds: 10));
 
-      print('Monthly Stats Response: ${response.statusCode}');
-      print('Monthly Stats Body: ${response.body}');
+      print('📊 Monthly Stats URL: $statsUrl');
+      print('📊 Monthly Stats Response: ${statsResponse.statusCode}');
+      print('📊 Monthly Stats Body: ${statsResponse.body}');
 
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+      // 🔥 AMBIL GAJI BULAN INI
+      final gajiUrl = Uri.parse('$_baseUrl/karyawan/payslip-live/$year/$month');
+      final gajiResponse = await http
+          .get(
+            gajiUrl,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
-        if (decoded['success'] == true && decoded['data'] != null) {
-          final data = decoded['data'];
+      print('💰 Gaji URL: $gajiUrl');
+      print('💰 Gaji Response: ${gajiResponse.statusCode}');
+      print('💰 Gaji Body: ${gajiResponse.body}');
 
-          setState(() {
-            monthlyStats = {
-              'cuti': data['cuti_tahun_ini'] ?? 0, // Per tahun
-              'izin': data['izin_bulan_ini'] ?? 0, // Per bulan
-              'alpha': data['alpha_bulan_ini'] ?? 0, // Per bulan
-              'sisa_cuti': data['sisa_cuti'] ?? 12,
-            };
-            isLoadingStats = false;
-          });
-        } else {
-          setState(() {
-            monthlyStats = {'cuti': 0, 'izin': 0, 'alpha': 0, 'sisa_cuti': 12};
-            isLoadingStats = false;
-          });
+      // Parse data dengan default values
+      int cutiTahunIni = 0;
+      int izinBulanIni = 0;
+      int alphaBulanIni = 0;
+      int sisaCuti = 12;
+      int gajiBersih = 0;
+
+      // Parse statistik dari monthly-stats
+      if (statsResponse.statusCode == 200) {
+        try {
+          final statsDecoded = jsonDecode(statsResponse.body);
+          print('📊 Decoded Stats: $statsDecoded');
+          
+          if (statsDecoded['success'] == true && statsDecoded['data'] != null) {
+            final data = statsDecoded['data'];
+            print('📊 Data field: $data');
+            
+            // Ambil nilai langsung dari backend
+            cutiTahunIni = (data['cuti_tahun_ini'] is int) 
+                ? data['cuti_tahun_ini'] 
+                : int.tryParse(data['cuti_tahun_ini'].toString()) ?? 0;
+                
+            izinBulanIni = (data['izin_bulan_ini'] is int) 
+                ? data['izin_bulan_ini'] 
+                : int.tryParse(data['izin_bulan_ini'].toString()) ?? 0;
+                
+            alphaBulanIni = (data['alpha_bulan_ini'] is int) 
+                ? data['alpha_bulan_ini'] 
+                : int.tryParse(data['alpha_bulan_ini'].toString()) ?? 0;
+                
+            sisaCuti = (data['sisa_cuti'] is int) 
+                ? data['sisa_cuti'] 
+                : int.tryParse(data['sisa_cuti'].toString()) ?? 12;
+            
+            print('✅ Parsed - Cuti: $cutiTahunIni, Izin: $izinBulanIni, Alpha: $alphaBulanIni, Sisa: $sisaCuti');
+          }
+        } catch (e) {
+          print('❌ Error parsing stats: $e');
         }
-      } else {
-        setState(() {
-          monthlyStats = {'cuti': 0, 'izin': 0, 'alpha': 0, 'sisa_cuti': 12};
-          isLoadingStats = false;
-        });
       }
-    } catch (e) {
-      print("Error getMonthlyStats: $e");
+
+      // Parse gaji dari payslip-live
+      if (gajiResponse.statusCode == 200) {
+        try {
+          final gajiDecoded = jsonDecode(gajiResponse.body);
+          print('💰 Decoded Gaji: $gajiDecoded');
+          
+          if (gajiDecoded['success'] == true && gajiDecoded['data'] != null) {
+            gajiBersih = (gajiDecoded['data']['net_salary'] is int) 
+                ? gajiDecoded['data']['net_salary'] 
+                : int.tryParse(gajiDecoded['data']['net_salary'].toString()) ?? 0;
+            
+            print('✅ Parsed - Gaji Bersih: $gajiBersih');
+          }
+        } catch (e) {
+          print('❌ Error parsing gaji: $e');
+        }
+      }
+
+      // Set final stats
+      final Map<String, dynamic> finalStats = {
+        'cuti': cutiTahunIni,
+        'izin': izinBulanIni,
+        'alpha': alphaBulanIni,
+        'sisa_cuti': sisaCuti,
+        'gaji_bersih': gajiBersih,
+      };
+
       setState(() {
-        monthlyStats = {'cuti': 0, 'izin': 0, 'alpha': 0, 'sisa_cuti': 12};
+        monthlyStats = finalStats;
+        isLoadingStats = false;
+      });
+
+      print('🎯 Final Stats Set: $monthlyStats');
+
+    } catch (e) {
+      print("❌ Error getMonthlyStats: $e");
+      setState(() {
+        monthlyStats = {
+          'cuti': 0,
+          'izin': 0,
+          'alpha': 0,
+          'sisa_cuti': 12,
+          'gaji_bersih': 0
+        };
         isLoadingStats = false;
       });
     }
   }
-  Future<void> getGajiBulanIni() async {
-  try {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null || token.isEmpty) return;
-
-    final now = DateTime.now();
-    final year = now.year;
-    final month = now.month;
-
-    // Gunakan endpoint payslip untuk ambil gaji
-    final url = Uri.parse('$_baseUrl/karyawan/payslip-live/$year/$month');
-    final response = await http
-        .get(
-          url,
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 10));
-
-    print('Gaji Response: ${response.statusCode}');
-    print('Gaji Body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body);
-      if (decoded['success'] == true && decoded['data'] != null) {
-        setState(() {
-          if (monthlyStats == null) {
-            monthlyStats = {'gaji_bersih': 0, 'cuti_terpakai': 0, 'sisa_cuti': 12, 'izin': 0, 'alpha': 0};
-          }
-          monthlyStats!['gaji_bersih'] = decoded['data']['net_salary'] ?? 0;
-        });
-      }
-    }
-  } catch (e) {
-    print("Error getGajiBulanIni: $e");
-  }
-}
 
   String formatCurrency(dynamic amount) {
     if (amount == null) return 'Rp. 0';
@@ -238,7 +273,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshData() async {
-    await Future.wait([getUser(), getMonthlyStats(),getGajiBulanIni(),]);
+    await Future.wait([
+      getUser(),
+      getMonthlyStats(), // Ini sudah include gaji
+    ]);
   }
 
   @override
@@ -281,7 +319,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    // _buildSearchBox(),
                     _buildLiveAttendance(formattedTime, formattedDate),
                     const SizedBox(height: 16),
                     _buildCheckButtons(),
@@ -339,7 +376,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader() {
-    // Loading state
     if (isLoadingUser) {
       return Container(
         color: Colors.white,
@@ -349,7 +385,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Error state
     if (userData == null || userData!.isEmpty) {
       return Container(
         color: Colors.white,
@@ -380,14 +415,12 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Success state
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Kiri: Nama dan Jabatan
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +446,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 16),
-          // Kanan: Status
           Row(
             children: [
               Image.asset(AppImage.status, width: 32, height: 32),
@@ -530,11 +562,25 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildStatItem(
                 AppImage.boxCuti,
-                'Cuti',
-                isLoadingStats ? '-' : '${monthlyStats?['cuti'] ?? 0}',
+                'Sisa Cuti',
+                isLoadingStats ? '-' : '${monthlyStats?['sisa_cuti'] ?? 12}',
                 Colors.blue,
               ),
               Container(width: 1, height: 50, color: Colors.grey.shade300),
+              _buildStatItem(
+                AppImage.boxCuti,
+                'Cuti Terpakai',
+                isLoadingStats ? '-' : '${monthlyStats?['cuti'] ?? 0}',
+                Colors.purple,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // Row Kedua: Izin dan Tidak Hadir
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
               _buildStatItem(
                 AppImage.boxIzin,
                 'Izin',
@@ -593,38 +639,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  // Widget _buildSearchBox() {
-  //   return Container(
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       borderRadius: BorderRadius.circular(24),
-  //       boxShadow: [
-  //         BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5),
-  //       ],
-  //       border: Border.all(color: Colors.grey.shade300, width: 1),
-  //     ),
-  //     child: Row(
-  //       children: [
-  //         const SizedBox(width: 20),
-  //         const Icon(Icons.search, color: Colors.black54),
-  //         const SizedBox(width: 10),
-  //         Expanded(
-  //           child: TextField(
-  //             decoration: InputDecoration(
-  //               hintText: 'Cari fitur di sini...',
-  //               hintStyle: PoppinsTextStyle.regular.copyWith(
-  //                 color: Colors.grey[600],
-  //                 fontSize: 13,
-  //               ),
-  //               border: InputBorder.none,
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _buildFeatureItem(
     BuildContext context,

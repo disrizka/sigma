@@ -43,7 +43,9 @@ dependencies:
   url_launcher: ^6.2.6
   pdfx: ^2.4.0
   month_year_picker: ^0.4.0+1
-  
+  pdf: ^3.10.4
+  printing: ^5.11.0
+  fl_chart: ^0.68.0
   
   
   # The following adds the Cupertino Icons font to your application.
