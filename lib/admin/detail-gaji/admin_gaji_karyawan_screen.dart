@@ -239,9 +239,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           _filteredList = slipGajiList;
           _isLoading = false;
         });
-
-        // ✅ RELOAD CHART PAS GANTI BULAN
-        _loadYearlyData();
       } else if (employeesResponse.statusCode == 401) {
         print('🔐 Token tidak valid - Status: ${employeesResponse.statusCode}');
         setState(() {
@@ -275,13 +272,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     });
 
     try {
-      // 📅 AMBIL TAHUN DARI _selectedBulan
-      DateTime selectedDate = DateFormat(
-        'MMMM yyyy',
-        'id_ID',
-      ).parse(_selectedBulan);
-      int chartYear = selectedDate.year; // ✅ TAHUN DARI BULAN YANG DIPILIH
-
+      DateTime now = DateTime.now();
+      int currentYear = _selectedYear;
       List<Map<String, dynamic>> yearlyData = [];
 
       // Loop untuk 12 bulan
@@ -308,7 +300,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               final payslipResponse = await http
                   .get(
                     Uri.parse(
-                      '$_baseUrl/payslip-live/${employee['id']}/$chartYear/$month', // ✅ PAKAI chartYear
+                      '$_baseUrl/payslip-live/${employee['id']}/$currentYear/$month',
                     ),
                     headers: {
                       'Authorization': 'Bearer $token',
@@ -340,9 +332,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           'monthName': DateFormat(
             'MMM',
             'id_ID',
-          ).format(DateTime(chartYear, month)),
+          ).format(DateTime(currentYear, month)),
           'total': totalGaji,
-          'year': chartYear, // ✅ SIMPAN TAHUN JUGA
         });
       }
 
@@ -350,8 +341,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
         _yearlyData = yearlyData;
         _isLoadingChart = false;
       });
-
-      print('📊 Chart loaded untuk tahun: $chartYear');
     } catch (e) {
       print('Error loading yearly data: $e');
       setState(() {
@@ -1443,9 +1432,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       return SizedBox.shrink();
     }
 
-    int chartYear =
-        _yearlyData.isNotEmpty ? _yearlyData[0]['year'] : DateTime.now().year;
-
     double maxY = _yearlyData
         .map((e) => (e['total'] as int).toDouble())
         .reduce((a, b) => a > b ? a : b);
@@ -1467,6 +1453,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // TAMBAH DROPDOWN TAHUN DI SINI
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1480,19 +1467,42 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 6,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: AppColor.primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColor.primaryColor),
                 ),
-                child: Text(
-                  chartYear.toString(),
-                  style: PoppinsTextStyle.bold.copyWith(
-                    fontSize: 14,
+                child: DropdownButton<int>(
+                  value: _selectedYear,
+                  underline: const SizedBox(),
+                  isDense: true,
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: AppColor.primaryColor,
+                    size: 20,
+                  ),
+                  style: PoppinsTextStyle.semiBold.copyWith(
+                    fontSize: 13,
                     color: AppColor.primaryColor,
                   ),
+                  items:
+                      _availableYears.map((int year) {
+                        return DropdownMenuItem<int>(
+                          value: year,
+                          child: Text(year.toString()),
+                        );
+                      }).toList(),
+                  onChanged: (int? newYear) {
+                    if (newYear != null) {
+                      setState(() {
+                        _selectedYear = newYear;
+                      });
+                      _loadYearlyData();
+                      _loadTopThreeYearly();
+                    }
+                  },
                 ),
               ),
             ],
