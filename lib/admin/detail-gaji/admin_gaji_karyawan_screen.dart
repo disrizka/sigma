@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as _storage;
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:sigma/api/api.dart';
 import 'package:sigma/utils/app_color.dart';
 import 'package:sigma/utils/app_font.dart';
@@ -35,6 +38,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
   List<int> _availableYears = [];
   List<Map<String, dynamic>> _topThreeYearly = [];
   bool _isLoadingTopThree = false;
+  bool _isGeneratingPdf = false;
 
   @override
   void initState() {
@@ -52,7 +56,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     int currentYear = DateTime.now().year;
     List<int> years = [];
 
-    // Buat list tahun dari 3 tahun lalu sampai tahun sekarang
     for (int i = 0; i <= 3; i++) {
       years.add(currentYear - i);
     }
@@ -236,6 +239,9 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           _filteredList = slipGajiList;
           _isLoading = false;
         });
+
+        // ✅ RELOAD CHART PAS GANTI BULAN
+        _loadYearlyData();
       } else if (employeesResponse.statusCode == 401) {
         print('🔐 Token tidak valid - Status: ${employeesResponse.statusCode}');
         setState(() {
@@ -269,8 +275,13 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     });
 
     try {
-      DateTime now = DateTime.now();
-      int currentYear = _selectedYear;
+      // 📅 AMBIL TAHUN DARI _selectedBulan
+      DateTime selectedDate = DateFormat(
+        'MMMM yyyy',
+        'id_ID',
+      ).parse(_selectedBulan);
+      int chartYear = selectedDate.year; // ✅ TAHUN DARI BULAN YANG DIPILIH
+
       List<Map<String, dynamic>> yearlyData = [];
 
       // Loop untuk 12 bulan
@@ -297,7 +308,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               final payslipResponse = await http
                   .get(
                     Uri.parse(
-                      '$_baseUrl/payslip-live/${employee['id']}/$currentYear/$month',
+                      '$_baseUrl/payslip-live/${employee['id']}/$chartYear/$month', // ✅ PAKAI chartYear
                     ),
                     headers: {
                       'Authorization': 'Bearer $token',
@@ -329,8 +340,9 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           'monthName': DateFormat(
             'MMM',
             'id_ID',
-          ).format(DateTime(currentYear, month)),
+          ).format(DateTime(chartYear, month)),
           'total': totalGaji,
+          'year': chartYear, // ✅ SIMPAN TAHUN JUGA
         });
       }
 
@@ -338,6 +350,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
         _yearlyData = yearlyData;
         _isLoadingChart = false;
       });
+
+      print('📊 Chart loaded untuk tahun: $chartYear');
     } catch (e) {
       print('Error loading yearly data: $e');
       setState(() {
@@ -442,13 +456,11 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     }
   }
 
-  // 🏆 FUNGSI UNTUK MENDAPATKAN RANKING
   int _getRanking(KaryawanSlipGaji item) {
     int index = _filteredList.indexOf(item);
     return index + 1;
   }
 
-  // 🏆 FUNGSI UNTUK MENDAPATKAN WARNA RANKING
   Color _getRankingColor(int ranking) {
     switch (ranking) {
       case 1:
@@ -462,7 +474,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     }
   }
 
-  // 🏆 FUNGSI UNTUK MENDAPATKAN ICON RANKING
   IconData _getRankingIcon(int ranking) {
     switch (ranking) {
       case 1:
@@ -1111,6 +1122,186 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     );
   }
 
+  Future<void> _generateAndPreviewPdf() async {
+    setState(() {
+      _isGeneratingPdf = true;
+    });
+
+    try {
+      final pdf = pw.Document();
+
+      // Parse bulan dan tahun dari _selectedBulan
+      DateTime selectedDate = DateFormat(
+        'MMMM yyyy',
+        'id_ID',
+      ).parse(_selectedBulan);
+      String monthYear = DateFormat('MMMM yyyy', 'id_ID').format(selectedDate);
+
+      // Tambah halaman PDF
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return [
+              // Header
+              pw.Container(
+                alignment: pw.Alignment.center,
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      'LAPORAN SLIP GAJI KARYAWAN',
+                      style: pw.TextStyle(
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Text(
+                      'Periode: $monthYear',
+                      style: pw.TextStyle(fontSize: 14),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Total Karyawan: ${_filteredList.length}',
+                      style: pw.TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 24),
+
+              // Summary Box
+              pw.Container(
+                padding: pw.EdgeInsets.all(16),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.blue, width: 2),
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'TOTAL GAJI BERSIH:',
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      _formatCurrency(_getTotalGajiBersih()),
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 24),
+
+              // Table
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey400),
+                children: [
+                  // Header Row
+                  pw.TableRow(
+                    decoration: pw.BoxDecoration(color: PdfColors.blue100),
+                    children: [
+                      _buildPdfTableCell('No', isHeader: true),
+                      _buildPdfTableCell('Nama', isHeader: true),
+                      _buildPdfTableCell('NIK', isHeader: true),
+                      _buildPdfTableCell('Jabatan', isHeader: true),
+                      _buildPdfTableCell('Gaji Pokok', isHeader: true),
+                      _buildPdfTableCell('Tunjangan', isHeader: true),
+                      _buildPdfTableCell('Potongan', isHeader: true),
+                      _buildPdfTableCell('Pajak', isHeader: true),
+                      _buildPdfTableCell('Gaji Bersih', isHeader: true),
+                    ],
+                  ),
+                  // Data Rows
+                  ..._filteredList.asMap().entries.map((entry) {
+                    int idx = entry.key;
+                    KaryawanSlipGaji item = entry.value;
+
+                    return pw.TableRow(
+                      children: [
+                        _buildPdfTableCell('${idx + 1}'),
+                        _buildPdfTableCell(item.namaKaryawan),
+                        _buildPdfTableCell(item.nik),
+                        _buildPdfTableCell(item.jabatan),
+                        _buildPdfTableCell(_formatCurrency(item.gajiPokok)),
+                        _buildPdfTableCell(_formatCurrency(item.tunjangan)),
+                        _buildPdfTableCell(_formatCurrency(item.potongan)),
+                        _buildPdfTableCell(_formatCurrency(item.pajak)),
+                        _buildPdfTableCell(
+                          _formatCurrency(item.gajiBersih),
+                          isBold: true,
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ],
+              ),
+
+              pw.SizedBox(height: 24),
+
+              // Footer
+              pw.Container(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      'Dicetak pada: ${DateFormat('dd MMMM yyyy, HH:mm', 'id_ID').format(DateTime.now())}',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ];
+          },
+        ),
+      );
+
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+
+      // Preview PDF
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+      );
+    } catch (e) {
+      setState(() {
+        _isGeneratingPdf = false;
+      });
+      _showError('Gagal generate PDF: $e');
+    }
+  }
+
+  pw.Widget _buildPdfTableCell(
+    String text, {
+    bool isHeader = false,
+    bool isBold = false,
+  }) {
+    return pw.Container(
+      padding: pw.EdgeInsets.all(8),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: isHeader ? 10 : 9,
+          fontWeight:
+              (isHeader || isBold) ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+        textAlign: isHeader ? pw.TextAlign.center : pw.TextAlign.left,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     print('🎨 Build widget dipanggil, _isLoading: $_isLoading');
@@ -1137,7 +1328,37 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           ),
         ),
         actions: [
-          // TAMBAH ICON PIALA DI SINI
+          // Icon PDF (BARU)
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.picture_as_pdf,
+                  color: Colors.red[700],
+                  size: 28,
+                ),
+                onPressed: _isGeneratingPdf ? null : _generateAndPreviewPdf,
+                tooltip: 'Lihat & Download PDF',
+              ),
+              if (_isGeneratingPdf)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.red[700]!,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          // Icon Trophy (yang sudah ada)
           Stack(
             children: [
               IconButton(
@@ -1222,6 +1443,9 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       return SizedBox.shrink();
     }
 
+    int chartYear =
+        _yearlyData.isNotEmpty ? _yearlyData[0]['year'] : DateTime.now().year;
+
     double maxY = _yearlyData
         .map((e) => (e['total'] as int).toDouble())
         .reduce((a, b) => a > b ? a : b);
@@ -1243,7 +1467,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // TAMBAH DROPDOWN TAHUN DI SINI
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1257,42 +1480,19 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 4,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
                   color: AppColor.primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColor.primaryColor),
                 ),
-                child: DropdownButton<int>(
-                  value: _selectedYear,
-                  underline: const SizedBox(),
-                  isDense: true,
-                  icon: Icon(
-                    Icons.arrow_drop_down,
-                    color: AppColor.primaryColor,
-                    size: 20,
-                  ),
-                  style: PoppinsTextStyle.semiBold.copyWith(
-                    fontSize: 13,
+                child: Text(
+                  chartYear.toString(),
+                  style: PoppinsTextStyle.bold.copyWith(
+                    fontSize: 14,
                     color: AppColor.primaryColor,
                   ),
-                  items:
-                      _availableYears.map((int year) {
-                        return DropdownMenuItem<int>(
-                          value: year,
-                          child: Text(year.toString()),
-                        );
-                      }).toList(),
-                  onChanged: (int? newYear) {
-                    if (newYear != null) {
-                      setState(() {
-                        _selectedYear = newYear;
-                      });
-                      _loadYearlyData();
-                      _loadTopThreeYearly();
-                    }
-                  },
                 ),
               ),
             ],
