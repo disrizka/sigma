@@ -46,9 +46,9 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     initializeDateFormatting('id_ID', null).then((_) {
       _initializeBulanOptions();
       _loadToken();
-      _loadYearlyData();
       _initializeYearOptions();
-      _loadTopThreeYearly();
+      _loadYearlyDataOptimized();
+      _loadTopThreeOptimized();
     });
   }
 
@@ -263,107 +263,24 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     }
   }
 
-  Future<void> _loadYearlyData() async {
+  Future<void> _loadYearlyDataOptimized() async {
     final token = await _storage.read(key: 'auth_token');
-    if (token == null) return;
+    if (token == null) {
+      print('❌ Token null, abort');
+      return;
+    }
 
     setState(() {
       _isLoadingChart = true;
     });
 
     try {
-      DateTime now = DateTime.now();
-      int currentYear = _selectedYear;
-      List<Map<String, dynamic>> yearlyData = [];
+      print('⚡ Loading yearly data untuk tahun: $_selectedYear');
+      print('🌐 URL: $_baseUrl/yearly-salary/$_selectedYear');
 
-      // Loop untuk 12 bulan
-      for (int month = 1; month <= 12; month++) {
-        int totalGaji = 0;
-
-        // Get employees
-        final employeesResponse = await http
-            .get(
-              Uri.parse('$_baseUrl/employees'),
-              headers: {
-                'Authorization': 'Bearer $token',
-                'Accept': 'application/json',
-              },
-            )
-            .timeout(const Duration(seconds: 30));
-
-        if (employeesResponse.statusCode == 200) {
-          List<dynamic> employees = json.decode(employeesResponse.body);
-
-          // Hitung total gaji per bulan
-          for (var employee in employees) {
-            try {
-              final payslipResponse = await http
-                  .get(
-                    Uri.parse(
-                      '$_baseUrl/payslip-live/${employee['id']}/$currentYear/$month',
-                    ),
-                    headers: {
-                      'Authorization': 'Bearer $token',
-                      'Accept': 'application/json',
-                    },
-                  )
-                  .timeout(const Duration(seconds: 10));
-
-              if (payslipResponse.statusCode == 200) {
-                var responseData = json.decode(payslipResponse.body);
-                var payslipData = responseData['data'];
-
-                int gajiPokok = _parseToInt(payslipData['total_basic_salary']);
-                int tunjangan = _parseToInt(payslipData['total_allowance']);
-                int potongan = _parseToInt(payslipData['total_deduction']);
-                int pajak = _parseToInt(payslipData['tax']);
-
-                int gajiBersih = gajiPokok + tunjangan - potongan - pajak;
-                totalGaji += gajiBersih;
-              }
-            } catch (e) {
-              print('Skip employee ${employee['name']} for month $month');
-            }
-          }
-        }
-
-        yearlyData.add({
-          'month': month,
-          'monthName': DateFormat(
-            'MMM',
-            'id_ID',
-          ).format(DateTime(currentYear, month)),
-          'total': totalGaji,
-        });
-      }
-
-      setState(() {
-        _yearlyData = yearlyData;
-        _isLoadingChart = false;
-      });
-    } catch (e) {
-      print('Error loading yearly data: $e');
-      setState(() {
-        _isLoadingChart = false;
-      });
-    }
-  }
-
-  Future<void> _loadTopThreeYearly() async {
-    final token = await _storage.read(key: 'auth_token');
-    if (token == null) return;
-
-    setState(() {
-      _isLoadingTopThree = true;
-    });
-
-    try {
-      Map<int, Map<String, dynamic>> employeeSalaryMap = {};
-
-      // Get employees
-      final employeesResponse = await http
+      final response = await http
           .get(
-            Uri.parse('$_baseUrl/employees'),
+            Uri.parse('$_baseUrl/yearly-salary/$_selectedYear'),
             headers: {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',
@@ -371,77 +288,137 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           )
           .timeout(const Duration(seconds: 30));
 
-      if (employeesResponse.statusCode == 200) {
-        List<dynamic> employees = json.decode(employeesResponse.body);
+      print('📊 Response Status: ${response.statusCode}');
+      print('📦 Response Body: ${response.body}');
 
-        // Loop semua karyawan
-        for (var employee in employees) {
-          int totalYearlySalary = 0;
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        print('✅ Decoded Response: $responseData');
 
-          // Loop 12 bulan
-          for (int month = 1; month <= 12; month++) {
-            try {
-              final payslipResponse = await http
-                  .get(
-                    Uri.parse(
-                      '$_baseUrl/payslip-live/${employee['id']}/$_selectedYear/$month',
-                    ),
-                    headers: {
-                      'Authorization': 'Bearer $token',
-                      'Accept': 'application/json',
-                    },
-                  )
-                  .timeout(const Duration(seconds: 10));
+        if (responseData['success'] == true) {
+          // ✅ PERBAIKAN: Cast yang lebih aman
+          var rawData = responseData['data'];
+          print('📋 Raw Data Type: ${rawData.runtimeType}');
+          print('📋 Raw Data: $rawData');
 
-              if (payslipResponse.statusCode == 200) {
-                var responseData = json.decode(payslipResponse.body);
-                var payslipData = responseData['data'];
+          List<Map<String, dynamic>> yearlyData = [];
 
-                int gajiPokok = _parseToInt(payslipData['total_basic_salary']);
-                int tunjangan = _parseToInt(payslipData['total_allowance']);
-                int potongan = _parseToInt(payslipData['total_deduction']);
-                int pajak = _parseToInt(payslipData['tax']);
-
-                int gajiBersih = gajiPokok + tunjangan - potongan - pajak;
-                totalYearlySalary += gajiBersih;
-              }
-            } catch (e) {
-              print('Skip month $month for ${employee['name']}');
+          if (rawData is List) {
+            for (var item in rawData) {
+              yearlyData.add({
+                'month': item['month'],
+                'monthName': item['monthName'].toString(),
+                'total':
+                    item['total'] is int
+                        ? item['total']
+                        : int.tryParse(item['total'].toString()) ?? 0,
+              });
             }
           }
 
-          // Simpan data karyawan
-          if (totalYearlySalary > 0) {
-            employeeSalaryMap[employee['id']] = {
-              'id': employee['id'],
-              'name': employee['name'],
-              'nik': employee['nik'],
-              'jabatan': employee['jabatan'],
-              'totalSalary': totalYearlySalary,
-            };
-          }
+          print('✅ Yearly data berhasil dimuat: ${yearlyData.length} bulan');
+          print(
+            '📊 Sample data: ${yearlyData.isNotEmpty ? yearlyData[0] : "kosong"}',
+          );
+
+          setState(() {
+            _yearlyData = yearlyData;
+            _isLoadingChart = false;
+          });
+        } else {
+          throw Exception('API returned success: false');
         }
-
-        // Sort dan ambil top 3
-        List<Map<String, dynamic>> sortedList =
-            employeeSalaryMap.values.toList();
-        sortedList.sort(
-          (a, b) =>
-              (b['totalSalary'] as int).compareTo(a['totalSalary'] as int),
-        );
-
-        setState(() {
-          _topThreeYearly = sortedList.take(3).toList();
-          _isLoadingTopThree = false;
-        });
-
-        print('🏆 Top 3 Tahunan berhasil dimuat: ${_topThreeYearly.length}');
+      } else {
+        throw Exception('Failed to load yearly data: ${response.statusCode}');
       }
-    } catch (e) {
-      print('Error loading top three yearly: $e');
+    } catch (e, stackTrace) {
+      print('❌ Error loading yearly data: $e');
+      print('📍 Stack trace: $stackTrace');
+      setState(() {
+        _isLoadingChart = false;
+        _yearlyData = [];
+      });
+      _showError('Gagal memuat data chart: $e');
+    }
+  }
+
+  Future<void> _loadTopThreeOptimized() async {
+    final token = await _storage.read(key: 'auth_token');
+    if (token == null) {
+      print('❌ Token null, abort');
+      return;
+    }
+
+    setState(() {
+      _isLoadingTopThree = true;
+    });
+
+    try {
+      print('⚡ Loading top 3 untuk tahun: $_selectedYear');
+      print('🌐 URL: $_baseUrl/top-three-yearly/$_selectedYear');
+
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/top-three-yearly/$_selectedYear'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('🏆 Response Status: ${response.statusCode}');
+      print('📦 Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        print('✅ Decoded Response: $responseData');
+
+        if (responseData['success'] == true) {
+          var rawData = responseData['data'];
+          print('📋 Raw Data Type: ${rawData.runtimeType}');
+          print('📋 Raw Data: $rawData');
+
+          List<Map<String, dynamic>> topThree = [];
+
+          if (rawData is List) {
+            for (var item in rawData) {
+              topThree.add({
+                'id': item['id'],
+                'name': item['name'].toString(),
+                'nik': item['nik'].toString(),
+                'jabatan': item['jabatan'].toString(),
+                'totalSalary':
+                    item['totalSalary'] is int
+                        ? item['totalSalary']
+                        : int.tryParse(item['totalSalary'].toString()) ?? 0,
+              });
+            }
+          }
+
+          print('✅ Top 3 berhasil dimuat: ${topThree.length} karyawan');
+          print(
+            '🏆 Sample data: ${topThree.isNotEmpty ? topThree[0] : "kosong"}',
+          );
+
+          setState(() {
+            _topThreeYearly = topThree;
+            _isLoadingTopThree = false;
+          });
+        } else {
+          throw Exception('API returned success: false');
+        }
+      } else {
+        throw Exception('Failed to load top three: ${response.statusCode}');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error loading top three: $e');
+      print('📍 Stack trace: $stackTrace');
       setState(() {
         _isLoadingTopThree = false;
+        _topThreeYearly = []; // ✅ Set empty list
       });
+      _showError('Gagal memuat top 3: $e');
     }
   }
 
@@ -1317,7 +1294,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
           ),
         ),
         actions: [
-          // Icon PDF (BARU)
           Stack(
             children: [
               IconButton(
@@ -1499,8 +1475,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                       setState(() {
                         _selectedYear = newYear;
                       });
-                      _loadYearlyData();
-                      _loadTopThreeYearly();
+                      _loadYearlyDataOptimized();
+                      _loadTopThreeOptimized();
                     }
                   },
                 ),
