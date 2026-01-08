@@ -47,6 +47,9 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       _initializeBulanOptions();
       _loadToken();
       _initializeYearOptions();
+
+      _syncYearFromSelectedBulan();
+
       _loadYearlyDataOptimized();
       _loadTopThreeOptimized();
     });
@@ -64,6 +67,31 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       _availableYears = years;
       _selectedYear = currentYear;
     });
+  }
+
+  // ✅ TAMBAH METHOD BARU INI
+  void _syncYearFromSelectedBulan() {
+    if (_selectedBulan.isNotEmpty) {
+      try {
+        DateTime selectedDate = DateFormat(
+          'MMMM yyyy',
+          'id_ID',
+        ).parse(_selectedBulan);
+        int yearFromBulan = selectedDate.year;
+
+        // Jika tahun berbeda, update
+        if (yearFromBulan != _selectedYear) {
+          print('🔄 Auto-sync tahun: $_selectedYear -> $yearFromBulan');
+          setState(() {
+            _selectedYear = yearFromBulan;
+          });
+          _loadYearlyDataOptimized();
+          _loadTopThreeOptimized();
+        }
+      } catch (e) {
+        print('Error parsing selected bulan: $e');
+      }
+    }
   }
 
   void _initializeBulanOptions() {
@@ -1397,166 +1425,110 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
   }
 
   Widget _buildYearlyChart() {
-    if (_isLoadingChart) {
-      return Container(
-        height: 300,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_yearlyData.isEmpty) {
-      return SizedBox.shrink();
-    }
-
-    double maxY = _yearlyData
-        .map((e) => (e['total'] as int).toDouble())
-        .reduce((a, b) => a > b ? a : b);
-
+  if (_isLoadingChart) {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // TAMBAH DROPDOWN TAHUN DI SINI
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Total Gaji Bersih per Bulan',
-                style: PoppinsTextStyle.bold.copyWith(
-                  fontSize: 16,
-                  color: Colors.black,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColor.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColor.primaryColor),
-                ),
-                child: DropdownButton<int>(
-                  value: _selectedYear,
-                  underline: const SizedBox(),
-                  isDense: true,
-                  icon: Icon(
-                    Icons.arrow_drop_down,
-                    color: AppColor.primaryColor,
-                    size: 20,
-                  ),
-                  style: PoppinsTextStyle.semiBold.copyWith(
-                    fontSize: 13,
-                    color: AppColor.primaryColor,
-                  ),
-                  items:
-                      _availableYears.map((int year) {
-                        return DropdownMenuItem<int>(
-                          value: year,
-                          child: Text(year.toString()),
-                        );
-                      }).toList(),
-                  onChanged: (int? newYear) {
-                    if (newYear != null) {
-                      setState(() {
-                        _selectedYear = newYear;
-                      });
-                      _loadYearlyDataOptimized();
-                      _loadTopThreeOptimized();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 250,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(show: true, drawVerticalLine: false),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 60,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          _formatCurrency(value.toInt()),
-                          style: PoppinsTextStyle.regular.copyWith(fontSize: 9),
-                        );
-                      },
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        if (value.toInt() >= 0 &&
-                            value.toInt() < _yearlyData.length) {
-                          return Text(
-                            _yearlyData[value.toInt()]['monthName'],
-                            style: PoppinsTextStyle.regular.copyWith(
-                              fontSize: 10,
-                            ),
-                          );
-                        }
-                        return Text('');
-                      },
-                    ),
-                  ),
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                ),
-                borderData: FlBorderData(show: true),
-                minX: 0,
-                maxX: (_yearlyData.length - 1).toDouble(),
-                minY: 0,
-                maxY: maxY * 1.1,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots:
-                        _yearlyData.asMap().entries.map((entry) {
-                          return FlSpot(
-                            entry.key.toDouble(),
-                            (entry.value['total'] as int).toDouble(),
-                          );
-                        }).toList(),
-                    isCurved: true,
-                    color: AppColor.primaryColor,
-                    barWidth: 3,
-                    dotData: FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: AppColor.primaryColor.withOpacity(0.1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      height: 300,
+      child: Center(child: CircularProgressIndicator()),
     );
   }
+
+  if (_yearlyData.isEmpty) {
+    return SizedBox.shrink();
+  }
+
+  double maxY = _yearlyData
+      .map((e) => (e['total'] as int).toDouble())
+      .reduce((a, b) => a > b ? a : b);
+
+  return Container(
+    margin: const EdgeInsets.all(16),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.withOpacity(0.1),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Total Gaji Bersih per Bulan - $_selectedYear',
+          style: PoppinsTextStyle.bold.copyWith(
+            fontSize: 16,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          height: 250, // ✅ Bisa dikurangi karena ga ada label bulan
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(show: true, drawVerticalLine: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 70,
+                    getTitlesWidget: (value, meta) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          _formatCurrency(value.toInt()),
+                          style: PoppinsTextStyle.regular.copyWith(
+                            fontSize: 9,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false), // ✅ MATIKAN
+                ),
+                rightTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                topTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+              ),
+              borderData: FlBorderData(show: true),
+              minX: 0,
+              maxX: (_yearlyData.length - 1).toDouble(),
+              minY: 0,
+              maxY: maxY * 1.1, // ✅ Kurangin space karena ga ada label
+              lineBarsData: [
+                LineChartBarData(
+                  spots: _yearlyData.asMap().entries.map((entry) {
+                    return FlSpot(
+                      entry.key.toDouble(),
+                      (entry.value['total'] as int).toDouble(),
+                    );
+                  }).toList(),
+                  isCurved: true,
+                  color: AppColor.primaryColor,
+                  barWidth: 3,
+                  dotData: FlDotData(show: true),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: AppColor.primaryColor.withOpacity(0.1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildHeaderSection() {
     return Container(
@@ -1593,6 +1565,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                     _selectedBulan = newValue;
                   });
                   _loadSlipGaji();
+                  _syncYearFromSelectedBulan();
                 }
               },
             ),
