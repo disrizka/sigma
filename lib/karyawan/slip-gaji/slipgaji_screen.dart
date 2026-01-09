@@ -5,10 +5,12 @@ import 'package:sigma/utils/app_font.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:typed_data'; // Tambahkan ini
+import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:pdfx/pdfx.dart'; // Untuk PDF Viewer
-import 'package:printing/printing.dart'; // Untuk Download/Cetak
+import 'package:pdfx/pdfx.dart' as pdfx;
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class SlipGajiScreen extends StatefulWidget {
   const SlipGajiScreen({super.key});
@@ -21,10 +23,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
   final _storage = const FlutterSecureStorage();
   final String _baseUrl = '$baseUrl/api/karyawan';
 
-  String selectedMonth = DateFormat(
-    'MMMM yyyy',
-    'id_ID',
-  ).format(DateTime.now());
+  String selectedMonth = DateFormat('MMMM yyyy', 'id_ID').format(DateTime.now());
   int selectedYear = DateTime.now().year;
   int selectedMonthNum = DateTime.now().month;
 
@@ -38,41 +37,219 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
     _loadSlipGaji();
   }
 
-  // --- FUNGSI BARU UNTUK PDF ---
+  // 🔥 GENERATE PDF LANGSUNG DARI FLUTTER
+  Future<Uint8List> _generatePdfBytes() async {
+    final doc = pw.Document();
+    
+    final int totalGajiPokok = slipGajiData?['total_basic_salary'] ?? 0;
+    final int totalTunjangan = slipGajiData?['total_allowance'] ?? 0;
+    final int totalPotongan = slipGajiData?['total_deduction'] ?? 0;
+    final int pajak = slipGajiData?['tax'] ?? 100000;
+    final int totalDiterima = slipGajiData?['net_salary'] ?? 0;
+    final int totalPendapatan = totalGajiPokok + totalTunjangan;
+    final int totalPengurangan = totalPotongan + pajak;
 
-  Future<Uint8List?> _fetchPdfBytes() async {
-    try {
-      final token = await _storage.read(key: 'auth_token');
-      // Endpoint PDF diasumsikan /payslip-pdf (sesuaikan dengan backend kamu)
-      final url = Uri.parse('$_baseUrl/payslip-pdf/$selectedYear/$selectedMonthNum');
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(30),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header
+              pw.Container(
+                padding: const pw.EdgeInsets.all(15),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.blue900,
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'SLIP GAJI KARYAWAN',
+                      style: pw.TextStyle(
+                        fontSize: 20,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Periode: $selectedMonth',
+                      style: pw.TextStyle(fontSize: 12, color: PdfColors.white),
+                    ),
+                  ],
+                ),
+              ),
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/pdf',
+              pw.SizedBox(height: 20),
+
+              // Info Tanggal Cetak
+              _buildInfoRow(
+                'Tanggal Cetak',
+                DateFormat('dd MMMM yyyy', 'id_ID').format(DateTime.now()),
+              ),
+
+              pw.SizedBox(height: 20),
+              pw.Divider(thickness: 2),
+              pw.SizedBox(height: 15),
+
+              // Pendapatan
+              pw.Text(
+                'PENDAPATAN',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.green900,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              _buildAmountRow('Gaji Pokok', totalGajiPokok),
+              _buildAmountRow('Tunjangan Makan & Transport', totalTunjangan),
+              pw.Divider(thickness: 1),
+              _buildAmountRow('Total Pendapatan', totalPendapatan, isBold: true),
+
+              pw.SizedBox(height: 20),
+
+              // Potongan
+              pw.Text(
+                'POTONGAN',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.red900,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              _buildAmountRow('Potongan Keterlambatan', totalPotongan),
+              _buildAmountRow('Pajak Bulanan', pajak),
+              pw.Divider(thickness: 1),
+              _buildAmountRow('Total Potongan', totalPengurangan, isBold: true),
+
+              pw.SizedBox(height: 20),
+              pw.Divider(thickness: 2),
+              pw.SizedBox(height: 10),
+
+              // Total Diterima
+              pw.Container(
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey300,
+                  borderRadius: pw.BorderRadius.circular(6),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'TOTAL GAJI DITERIMA',
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      'Rp ${NumberFormat('#,###', 'id_ID').format(totalDiterima)}',
+                      style: pw.TextStyle(
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.Spacer(),
+
+              // Footer
+              pw.Divider(thickness: 1),
+              pw.SizedBox(height: 10),
+              pw.Text(
+                'Catatan: Slip gaji ini dibuat secara otomatis oleh sistem.',
+                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              ),
+              pw.Text(
+                'Untuk informasi lebih lanjut, hubungi HRD.',
+                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              ),
+            ],
+          );
         },
-      ).timeout(const Duration(seconds: 20));
+      ),
+    );
 
-      if (response.statusCode == 200) {
-        return response.bodyBytes;
-      } else {
-        throw 'Gagal mengambil PDF: ${response.statusCode}';
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Terjadi kesalahan: $e')),
-      );
-      return null;
-    }
+    return await doc.save();
   }
 
-  void _lihatPdf() async {
-    setState(() => isLoading = true);
-    final pdfBytes = await _fetchPdfBytes();
-    setState(() => isLoading = false);
+  pw.Widget _buildInfoRow(String label, String value) {
+    return pw.Row(
+      children: [
+        pw.Container(
+          width: 120,
+          child: pw.Text(
+            label,
+            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+          ),
+        ),
+        pw.Text(': ', style: pw.TextStyle(fontSize: 10)),
+        pw.Expanded(
+          child: pw.Text(
+            value,
+            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+      ],
+    );
+  }
 
-    if (pdfBytes != null && mounted) {
+  pw.Widget _buildAmountRow(String label, int amount, {bool isBold = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            ),
+          ),
+          pw.Text(
+            'Rp ${NumberFormat('#,###', 'id_ID').format(amount)}',
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔥 LIHAT PDF - PREVIEW
+  void _lihatPdf() async {
+    if (slipGajiData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data slip gaji tidak tersedia'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final pdfBytes = await _generatePdfBytes();
+
+      setState(() => isLoading = false);
+
+      if (!mounted) return;
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -82,29 +259,69 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
           ),
         ),
       );
-    }
-  }
-
-  void _downloadCetakPdf() async {
-    setState(() => isLoading = true);
-    final pdfBytes = await _fetchPdfBytes();
-    setState(() => isLoading = false);
-
-    if (pdfBytes != null) {
-      await Printing.layoutPdf(
-        onLayout: (format) async => pdfBytes,
-        name: 'Slip_Gaji_${selectedMonth.replaceAll(' ', '_')}',
+    } catch (e) {
+      setState(() => isLoading = false);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal membuat PDF: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
 
-  // --- LOGIKA ASLI TETAP SAMA ---
+  // 🔥 DOWNLOAD/CETAK PDF
+  void _downloadCetakPdf() async {
+    if (slipGajiData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data slip gaji tidak tersedia'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final pdfBytes = await _generatePdfBytes();
+
+      setState(() => isLoading = false);
+
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdfBytes,
+        name: 'Slip_Gaji_${selectedMonth.replaceAll(' ', '_')}',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF berhasil diunduh/dicetak'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mencetak PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _loadSlipGaji() async {
     setState(() {
       isLoading = true;
       errorMessage = null;
-      slipGajiData = null; 
+      slipGajiData = null;
     });
 
     try {
@@ -118,19 +335,15 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
         return;
       }
 
-      final url = Uri.parse(
-        '$_baseUrl/payslip-live/$selectedYear/$selectedMonthNum',
-      );
+      final url = Uri.parse('$_baseUrl/payslip-live/$selectedYear/$selectedMonthNum');
 
-      final response = await http
-          .get(
-            url,
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 20));
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -179,10 +392,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
 
     return (slipGajiData!['daily_details'] as List).map((item) {
       return {
-        'tanggal': DateFormat(
-          'dd MMM yyyy',
-          'id_ID',
-        ).format(DateTime.parse(item['date'])),
+        'tanggal': DateFormat('dd MMM yyyy', 'id_ID').format(DateTime.parse(item['date'])),
         'status': _mapStatus(item['status']),
         'jamMasuk': item['check_in'] ?? '-',
         'jamKeluar': item['check_out'] ?? '-',
@@ -253,11 +463,10 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
     ];
 
-    final List<int> years =
-        List.generate(
-          DateTime.now().year - 2020 + 1,
-          (index) => 2020 + index,
-        ).reversed.toList();
+    final List<int> years = List.generate(
+      DateTime.now().year - 2020 + 1,
+      (index) => 2020 + index,
+    ).reversed.toList();
 
     int tempMonth = selectedMonthNum;
     int tempYear = selectedYear;
@@ -279,10 +488,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Pilih Periode',
-                        style: PoppinsTextStyle.bold.copyWith(fontSize: 18),
-                      ),
+                      Text('Pilih Periode', style: PoppinsTextStyle.bold.copyWith(fontSize: 18)),
                       IconButton(
                         icon: Icon(Icons.close),
                         onPressed: () => Navigator.pop(context),
@@ -300,19 +506,10 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                       value: tempYear,
                       isExpanded: true,
                       underline: SizedBox(),
-                      icon: Icon(
-                        Icons.arrow_drop_down,
-                        color: AppColor.primaryColor,
-                      ),
-                      style: PoppinsTextStyle.semiBold.copyWith(
-                        fontSize: 16,
-                        color: AppColor.primaryColor,
-                      ),
+                      icon: Icon(Icons.arrow_drop_down, color: AppColor.primaryColor),
+                      style: PoppinsTextStyle.semiBold.copyWith(fontSize: 16, color: AppColor.primaryColor),
                       items: years.map((year) {
-                        return DropdownMenuItem(
-                          value: year,
-                          child: Text('$year'),
-                        );
+                        return DropdownMenuItem(value: year, child: Text('$year'));
                       }).toList(),
                       onChanged: (value) {
                         if (value != null) {
@@ -336,9 +533,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                       itemBuilder: (context, index) {
                         final monthNum = index + 1;
                         final isSelected = tempMonth == monthNum;
-                        final isFuture =
-                            tempYear == DateTime.now().year &&
-                            monthNum > DateTime.now().month;
+                        final isFuture = tempYear == DateTime.now().year && monthNum > DateTime.now().month;
 
                         return InkWell(
                           onTap: isFuture ? null : () {
@@ -355,9 +550,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                                       : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected
-                                    ? AppColor.primaryColor
-                                    : Colors.grey[300]!,
+                                color: isSelected ? AppColor.primaryColor : Colors.grey[300]!,
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
@@ -384,24 +577,16 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.pop(context, {
-                          'month': tempMonth,
-                          'year': tempYear,
-                        });
+                        Navigator.pop(context, {'month': tempMonth, 'year': tempYear});
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColor.primaryColor,
                         padding: EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text(
                         'Pilih',
-                        style: PoppinsTextStyle.semiBold.copyWith(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
+                        style: PoppinsTextStyle.semiBold.copyWith(fontSize: 16, color: Colors.white),
                       ),
                     ),
                   ),
@@ -441,22 +626,20 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
         ),
         title: Text(
           'Slip Gaji',
-          style: PoppinsTextStyle.bold.copyWith(
-            fontSize: 18,
-            color: AppColor.backgroundColor,
-          ),
+          style: PoppinsTextStyle.bold.copyWith(fontSize: 18, color: AppColor.backgroundColor),
         ),
         centerTitle: true,
         actions: [
-          // TAMBAHKAN TOMBOL PDF DI SINI
           if (slipGajiData != null) ...[
             IconButton(
               icon: Icon(Icons.picture_as_pdf, color: AppColor.backgroundColor),
               onPressed: _lihatPdf,
+              tooltip: 'Preview PDF',
             ),
             IconButton(
               icon: Icon(Icons.download, color: AppColor.backgroundColor),
               onPressed: _downloadCetakPdf,
+              tooltip: 'Download/Cetak PDF',
             ),
           ],
           IconButton(
@@ -466,9 +649,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
         ],
       ),
       body: isLoading
-          ? Center(
-              child: CircularProgressIndicator(color: AppColor.primaryColor),
-            )
+          ? Center(child: CircularProgressIndicator(color: AppColor.primaryColor))
           : errorMessage != null
               ? Center(
                   child: Column(
@@ -481,20 +662,14 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                         child: Text(
                           errorMessage!,
                           textAlign: TextAlign.center,
-                          style: PoppinsTextStyle.medium.copyWith(
-                            fontSize: 16,
-                            color: Colors.grey[700],
-                          ),
+                          style: PoppinsTextStyle.medium.copyWith(fontSize: 16, color: Colors.grey[700]),
                         ),
                       ),
                       SizedBox(height: 8),
                       Text(
                         'Silakan pilih bulan lain',
                         textAlign: TextAlign.center,
-                        style: PoppinsTextStyle.regular.copyWith(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
+                        style: PoppinsTextStyle.regular.copyWith(fontSize: 14, color: Colors.grey[500]),
                       ),
                       SizedBox(height: 24),
                       Row(
@@ -529,7 +704,6 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
               : SingleChildScrollView(
                   child: Column(
                     children: [
-                      // Header desain asli
                       Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
@@ -549,10 +723,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.3),
-                                    width: 1,
-                                  ),
+                                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -561,10 +732,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                                     const SizedBox(width: 8),
                                     Text(
                                       selectedMonth,
-                                      style: PoppinsTextStyle.semiBold.copyWith(
-                                        fontSize: 14,
-                                        color: AppColor.backgroundColor,
-                                      ),
+                                      style: PoppinsTextStyle.semiBold.copyWith(fontSize: 14, color: AppColor.backgroundColor),
                                     ),
                                     const SizedBox(width: 8),
                                     Icon(Icons.arrow_drop_down, color: AppColor.backgroundColor, size: 24),
@@ -575,26 +743,17 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                             const SizedBox(height: 8),
                             Text(
                               'Ketuk untuk mengubah periode',
-                              style: PoppinsTextStyle.regular.copyWith(
-                                fontSize: 11,
-                                color: AppColor.backgroundColor.withOpacity(0.7),
-                              ),
+                              style: PoppinsTextStyle.regular.copyWith(fontSize: 11, color: AppColor.backgroundColor.withOpacity(0.7)),
                             ),
                             const SizedBox(height: 20),
                             Text(
                               'Total Gaji Diterima',
-                              style: PoppinsTextStyle.regular.copyWith(
-                                fontSize: 14,
-                                color: AppColor.backgroundColor.withOpacity(0.9),
-                              ),
+                              style: PoppinsTextStyle.regular.copyWith(fontSize: 14, color: AppColor.backgroundColor.withOpacity(0.9)),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Rp ${NumberFormat('#,###', 'id_ID').format(totalDiterima)}',
-                              style: PoppinsTextStyle.bold.copyWith(
-                                fontSize: 32,
-                                color: AppColor.backgroundColor,
-                              ),
+                              style: PoppinsTextStyle.bold.copyWith(fontSize: 32, color: AppColor.backgroundColor),
                             ),
                           ],
                         ),
@@ -607,7 +766,6 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
                           children: [
                             Text('Ringkasan Bulanan', style: PoppinsTextStyle.bold.copyWith(fontSize: 16, color: Colors.black87)),
                             const SizedBox(height: 12),
-                            // Bagian pendapatan & potongan tetap sama
                             _buildIncomeCard(),
                             const SizedBox(height: 12),
                             _buildDeductionCard(),
@@ -630,7 +788,6 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
     );
   }
 
-  // Helper Widgets (Untuk merapikan kodingan tanpa mengubah desain)
   Widget _buildIncomeCard() {
     return Container(
       width: double.infinity,
@@ -866,8 +1023,7 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
   }
 }
 
-// --- WIDGET SCREEN PDF VIEWER ---
-
+// PDF VIEWER PAGE
 class PDFViewerPage extends StatefulWidget {
   final Uint8List pdfBytes;
   final String title;
@@ -879,13 +1035,13 @@ class PDFViewerPage extends StatefulWidget {
 }
 
 class _PDFViewerPageState extends State<PDFViewerPage> {
-  late PdfControllerPinch _pdfController;
+  late pdfx.PdfControllerPinch _pdfController;
 
   @override
   void initState() {
     super.initState();
-    _pdfController = PdfControllerPinch(
-      document: PdfDocument.openData(widget.pdfBytes),
+    _pdfController = pdfx.PdfControllerPinch(
+      document: pdfx.PdfDocument.openData(widget.pdfBytes),
     );
   }
 
@@ -910,9 +1066,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
           ),
         ],
       ),
-      body: PdfViewPinch(
-        controller: _pdfController,
-      ),
+      body: pdfx.PdfViewPinch(controller: _pdfController),
     );
   }
 }
