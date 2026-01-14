@@ -15,8 +15,14 @@ class HistoryItem {
   final String itemType;
   final DateTime createdAt;
   final DateTime? checkInTime, checkOutTime, startDate, endDate;
-  final String? checkInLocation, checkOutLocation, leaveType, reason, status,
-      fileProof, statusCheckIn, statusCheckOut;
+  final String? checkInLocation,
+      checkOutLocation,
+      leaveType,
+      reason,
+      status,
+      fileProof,
+      statusCheckIn,
+      statusCheckOut;
 
   HistoryItem({
     required this.itemType,
@@ -42,12 +48,14 @@ class HistoryItem {
       createdAt: DateTime.parse(
         isAttendance ? json['date'] : json['start_date'],
       ),
-      checkInTime: isAttendance && json['check_in_time'] != null
-          ? DateTime.parse(json['check_in_time'])
-          : null,
-      checkOutTime: isAttendance && json['check_out_time'] != null
-          ? DateTime.parse(json['check_out_time'])
-          : null,
+      checkInTime:
+          isAttendance && json['check_in_time'] != null
+              ? DateTime.parse(json['check_in_time'])
+              : null,
+      checkOutTime:
+          isAttendance && json['check_out_time'] != null
+              ? DateTime.parse(json['check_out_time'])
+              : null,
       checkInLocation:
           isAttendance ? json['check_in_location'] : json['location'],
       checkOutLocation: json['check_out_location'],
@@ -58,8 +66,11 @@ class HistoryItem {
       status: json['status'],
       fileProof: json['file_proof'],
       startDate:
-          json['start_date'] != null ? DateTime.parse(json['start_date']) : null,
-      endDate: json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
+          json['start_date'] != null
+              ? DateTime.parse(json['start_date'])
+              : null,
+      endDate:
+          json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
     );
   }
 }
@@ -84,7 +95,10 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
   final String _baseUrl = '$baseUrl';
   bool _isLoading = true;
   Map<String, List<HistoryItem>> _groupedHistory = {};
-  String selectedMonth = DateFormat('MMMM yyyy', 'id_ID').format(DateTime.now());
+  String selectedMonth = DateFormat(
+    'MMMM yyyy',
+    'id_ID',
+  ).format(DateTime.now());
   int selectedYear = DateTime.now().year;
   int selectedMonthNum = DateTime.now().month;
   late AnimationController _fadeController;
@@ -155,7 +169,10 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
         if (itemDate.year != selectedYear || itemDate.month != selectedMonthNum)
           continue;
 
-        String dateStr = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(itemDate);
+        String dateStr = DateFormat(
+          'EEEE, d MMMM yyyy',
+          'id_ID',
+        ).format(itemDate);
         grouped.putIfAbsent(dateStr, () => []).add(item);
       } else {
         if (item.startDate == null || item.endDate == null) continue;
@@ -163,14 +180,21 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
         final startDate = item.startDate!.toLocal();
         final endDate = item.endDate!.toLocal();
 
-        for (var date = startDate;
-            date.isBefore(endDate.add(Duration(days: 1)));
-            date = date.add(Duration(days: 1))) {
+        for (
+          var date = startDate;
+          date.isBefore(endDate.add(Duration(days: 1)));
+          date = date.add(Duration(days: 1))
+        ) {
           if (date.year != selectedYear || date.month != selectedMonthNum)
             continue;
 
-          String dateStr = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(date);
-          grouped.putIfAbsent(dateStr, () => []).add(
+          String dateStr = DateFormat(
+            'EEEE, d MMMM yyyy',
+            'id_ID',
+          ).format(date);
+          grouped
+              .putIfAbsent(dateStr, () => [])
+              .add(
                 HistoryItem(
                   itemType: item.itemType,
                   createdAt: date,
@@ -214,7 +238,8 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
             ),
           ],
         ),
-        backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+        backgroundColor:
+            isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.all(16),
@@ -225,13 +250,24 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
 
   Future<void> _pilihBulan() async {
     final months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
-    final years = List.generate(
-      DateTime.now().year - 2020 + 1,
-      (index) => 2020 + index,
-    ).reversed.toList();
+    final years =
+        List.generate(
+          DateTime.now().year - 2020 + 1,
+          (index) => 2020 + index,
+        ).reversed.toList();
 
     int tempMonth = selectedMonthNum;
     int tempYear = selectedYear;
@@ -247,7 +283,9 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
               height: 500,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
@@ -289,7 +327,10 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColor.primaryColor.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(16),
@@ -301,19 +342,26 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                         value: tempYear,
                         isExpanded: true,
                         underline: const SizedBox(),
-                        icon: Icon(Icons.arrow_drop_down, color: AppColor.primaryColor),
+                        icon: Icon(
+                          Icons.arrow_drop_down,
+                          color: AppColor.primaryColor,
+                        ),
                         style: PoppinsTextStyle.bold.copyWith(
                           fontSize: 18,
                           color: AppColor.primaryColor,
                         ),
-                        items: years
-                            .map((year) => DropdownMenuItem(
-                                  value: year,
-                                  child: Text('$year'),
-                                ))
-                            .toList(),
+                        items:
+                            years
+                                .map(
+                                  (year) => DropdownMenuItem(
+                                    value: year,
+                                    child: Text('$year'),
+                                  ),
+                                )
+                                .toList(),
                         onChanged: (value) {
-                          if (value != null) setModalState(() => tempYear = value);
+                          if (value != null)
+                            setModalState(() => tempYear = value);
                         },
                       ),
                     ),
@@ -323,59 +371,69 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: GridView.builder(
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 2.2,
-                        ),
+                        physics: const BouncingScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 2.2,
+                            ),
                         itemCount: 12,
                         itemBuilder: (context, index) {
                           final monthNum = index + 1;
                           final isSelected = tempMonth == monthNum;
-                          final isFuture = tempYear > DateTime.now().year ||
+                          final isFuture =
+                              tempYear > DateTime.now().year ||
                               (tempYear == DateTime.now().year &&
                                   monthNum > DateTime.now().month + 1);
 
                           return InkWell(
-                            onTap: isFuture
-                                ? null
-                                : () => setModalState(() => tempMonth = monthNum),
+                            onTap:
+                                isFuture
+                                    ? null
+                                    : () => setModalState(
+                                      () => tempMonth = monthNum,
+                                    ),
                             borderRadius: BorderRadius.circular(14),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColor.primaryColor
-                                    : isFuture
+                                color:
+                                    isSelected
+                                        ? AppColor.primaryColor
+                                        : isFuture
                                         ? Colors.grey[100]
                                         : Colors.white,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: isSelected
-                                      ? AppColor.primaryColor
-                                      : Colors.grey[300]!,
+                                  color:
+                                      isSelected
+                                          ? AppColor.primaryColor
+                                          : Colors.grey[300]!,
                                   width: isSelected ? 2 : 1,
                                 ),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: AppColor.primaryColor.withOpacity(0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
-                                    : null,
+                                boxShadow:
+                                    isSelected
+                                        ? [
+                                          BoxShadow(
+                                            color: AppColor.primaryColor
+                                                .withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ]
+                                        : null,
                               ),
                               child: Center(
                                 child: Text(
                                   months[index].substring(0, 3),
                                   style: PoppinsTextStyle.bold.copyWith(
                                     fontSize: 13,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : isFuture
+                                    color:
+                                        isSelected
+                                            ? Colors.white
+                                            : isFuture
                                             ? Colors.grey[400]
                                             : const Color(0xFF1E293B),
                                   ),
@@ -392,10 +450,11 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                     child: SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context, {
-                          'month': tempMonth,
-                          'year': tempYear,
-                        }),
+                        onPressed:
+                            () => Navigator.pop(context, {
+                              'month': tempMonth,
+                              'year': tempYear,
+                            }),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColor.primaryColor,
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -426,8 +485,10 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
       setState(() {
         selectedYear = result['year']!;
         selectedMonthNum = result['month']!;
-        selectedMonth = DateFormat('MMMM yyyy', 'id_ID')
-            .format(DateTime(selectedYear, selectedMonthNum));
+        selectedMonth = DateFormat(
+          'MMMM yyyy',
+          'id_ID',
+        ).format(DateTime(selectedYear, selectedMonthNum));
       });
       _loadHistory();
     }
@@ -447,82 +508,87 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
 
     final shouldOpen = await showDialog<bool>(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF38B2AC).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Color(0xFF38B2AC),
-                  size: 48,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Buka File PDF',
-                style: PoppinsTextStyle.bold.copyWith(fontSize: 20),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Apakah Anda ingin membuka lampiran PDF ini?",
-                textAlign: TextAlign.center,
-                style: PoppinsTextStyle.regular.copyWith(
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: Colors.grey[300]!),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Batal',
-                        style: PoppinsTextStyle.semiBold.copyWith(
-                          color: Colors.grey[700],
-                        ),
-                      ),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38B2AC).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.picture_as_pdf,
+                      color: Color(0xFF38B2AC),
+                      size: 48,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF38B2AC),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Buka File PDF',
+                    style: PoppinsTextStyle.bold.copyWith(fontSize: 20),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Apakah Anda ingin membuka lampiran PDF ini?",
+                    textAlign: TextAlign.center,
+                    style: PoppinsTextStyle.regular.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: Colors.grey[300]!),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Batal',
+                            style: PoppinsTextStyle.semiBold.copyWith(
+                              color: Colors.grey[700],
+                            ),
+                          ),
                         ),
                       ),
-                      child: Text(
-                        'Buka',
-                        style: PoppinsTextStyle.bold.copyWith(color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF38B2AC),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Buka',
+                            style: PoppinsTextStyle.bold.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
     );
 
     if (shouldOpen != true) return;
@@ -538,30 +604,31 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => Scaffold(
-            backgroundColor: Colors.grey[100],
-            appBar: AppBar(
-              elevation: 0,
-              backgroundColor: Colors.white,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                onPressed: () => Navigator.pop(context),
-              ),
-              title: Text(
-                "Preview File",
-                style: PoppinsTextStyle.bold.copyWith(fontSize: 18),
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.download),
-                  onPressed: () => _downloadPdf(pdfUrl),
+          builder:
+              (_) => Scaffold(
+                backgroundColor: Colors.grey[100],
+                appBar: AppBar(
+                  elevation: 0,
+                  backgroundColor: Colors.white,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: Text(
+                    "Preview File",
+                    style: PoppinsTextStyle.bold.copyWith(fontSize: 18),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.download),
+                      onPressed: () => _downloadPdf(pdfUrl),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            body: PdfViewPinch(
-              controller: PdfControllerPinch(document: doc),
-            ),
-          ),
+                body: PdfViewPinch(
+                  controller: PdfControllerPinch(document: doc),
+                ),
+              ),
         ),
       );
     } catch (e) {
@@ -602,7 +669,8 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
 
   Color _getStatusColor(String status) {
     final s = status.toLowerCase();
-    if (s.contains('telat') || s.contains('late')) return const Color(0xFFF59E0B);
+    if (s.contains('telat') || s.contains('late'))
+      return const Color(0xFFF59E0B);
     if (s.contains('overtime')) return const Color(0xFF7C3AED);
     if (s.contains('hadir') || s.contains('on time') || s.contains('tepat'))
       return const Color(0xFF10B981);
@@ -631,9 +699,10 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
         children: [
           _buildMonthSelector(),
           Expanded(
-            child: _isLoading
-                ? _buildLoadingState()
-                : _groupedHistory.isEmpty
+            child:
+                _isLoading
+                    ? _buildLoadingState()
+                    : _groupedHistory.isEmpty
                     ? _buildEmptyState()
                     : _buildHistoryList(),
           ),
@@ -670,7 +739,11 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                   color: AppColor.primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.history, color: AppColor.primaryColor, size: 20),
+                child: Icon(
+                  Icons.history,
+                  color: AppColor.primaryColor,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               Text(
@@ -722,7 +795,11 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.calendar_month, color: AppColor.primaryColor, size: 22),
+              Icon(
+                Icons.calendar_month,
+                color: AppColor.primaryColor,
+                size: 22,
+              ),
               const SizedBox(width: 12),
               Text(
                 selectedMonth,
@@ -732,7 +809,11 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.arrow_drop_down, color: AppColor.primaryColor, size: 24),
+              Icon(
+                Icons.arrow_drop_down,
+                color: AppColor.primaryColor,
+                size: 24,
+              ),
             ],
           ),
         ),
@@ -782,9 +863,12 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildDateHeader(date, items.length),
-                  ...items.map((item) => item.itemType == 'attendance'
-                      ? _buildAttendanceCard(item)
-                      : _buildLeaveCard(item)),
+                  ...items.map(
+                    (item) =>
+                        item.itemType == 'attendance'
+                            ? _buildAttendanceCard(item)
+                            : _buildLeaveCard(item),
+                  ),
                 ],
               ),
             );
@@ -834,7 +918,10 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
   }
 
   Widget _buildAttendanceCard(HistoryItem item) {
-    final isToday = DateUtils.isSameDay(item.createdAt.toLocal(), DateTime.now());
+    final isToday = DateUtils.isSameDay(
+      item.createdAt.toLocal(),
+      DateTime.now(),
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(20),
@@ -891,10 +978,17 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
   Widget _buildLeaveCard(HistoryItem item) {
     final icon = item.leaveType == 'izin' ? Icons.info_outline : Icons.event;
     final statusColor = _getApprovalColor(item.status ?? '');
-    final statusText = {'pending': 'Menunggu', 'approved': 'Disetujui', 'rejected': 'Ditolak'}[item.status] ?? 'Unknown';
-    final dateRange = item.startDate != null && item.endDate != null
-        ? '${_formatDate(item.startDate)} - ${_formatDate(item.endDate)}'
-        : _formatDate(item.startDate);
+    final statusText =
+        {
+          'pending': 'Menunggu',
+          'approved': 'Disetujui',
+          'rejected': 'Ditolak',
+        }[item.status] ??
+        'Unknown';
+    final dateRange =
+        item.startDate != null && item.endDate != null
+            ? '${_formatDate(item.startDate)} - ${_formatDate(item.endDate)}'
+            : _formatDate(item.startDate);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -937,7 +1031,10 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -955,7 +1052,12 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                 const SizedBox(height: 10),
                 _buildInfoRow(Icons.date_range, dateRange, Colors.grey[600]!),
                 const SizedBox(height: 6),
-                _buildInfoRow(Icons.access_time, _formatDateTime(item.createdAt), Colors.grey[500]!, fontSize: 11),
+                _buildInfoRow(
+                  Icons.access_time,
+                  _formatDateTime(item.createdAt),
+                  Colors.grey[500]!,
+                  fontSize: 11,
+                ),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -983,17 +1085,19 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                     ],
                   ),
                 ),
-                if (item.checkInLocation != null && item.checkInLocation != "-") ...[
+                if (item.checkInLocation != null &&
+                    item.checkInLocation != "-") ...[
                   const SizedBox(height: 10),
                   FutureBuilder<String>(
                     future: _getAddressFromCoords(item.checkInLocation),
-                    builder: (context, snapshot) => _buildInfoRow(
-                      Icons.location_on,
-                      snapshot.data ?? 'Memuat...',
-                      Colors.grey[500]!,
-                      maxLines: 2,
-                      fontSize: 11,
-                    ),
+                    builder:
+                        (context, snapshot) => _buildInfoRow(
+                          Icons.location_on,
+                          snapshot.data ?? 'Memuat...',
+                          Colors.grey[500]!,
+                          maxLines: 2,
+                          fontSize: 11,
+                        ),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -1001,16 +1105,21 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                   onTap: () => _launchFile(item.fileProof),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: item.fileProof != null && item.fileProof!.isNotEmpty
-                          ? const Color(0xFF38B2AC).withOpacity(0.1)
-                          : Colors.grey[100],
+                      color:
+                          item.fileProof != null && item.fileProof!.isNotEmpty
+                              ? const Color(0xFF38B2AC).withOpacity(0.1)
+                              : Colors.grey[100],
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: item.fileProof != null && item.fileProof!.isNotEmpty
-                            ? const Color(0xFF38B2AC).withOpacity(0.3)
-                            : Colors.grey[300]!,
+                        color:
+                            item.fileProof != null && item.fileProof!.isNotEmpty
+                                ? const Color(0xFF38B2AC).withOpacity(0.3)
+                                : Colors.grey[300]!,
                       ),
                     ),
                     child: Row(
@@ -1021,9 +1130,11 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                               ? Icons.file_present
                               : Icons.info_outline,
                           size: 18,
-                          color: item.fileProof != null && item.fileProof!.isNotEmpty
-                              ? const Color(0xFF38B2AC)
-                              : Colors.grey[500],
+                          color:
+                              item.fileProof != null &&
+                                      item.fileProof!.isNotEmpty
+                                  ? const Color(0xFF38B2AC)
+                                  : Colors.grey[500],
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -1032,9 +1143,11 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                               : 'Tidak Ada File',
                           style: PoppinsTextStyle.semiBold.copyWith(
                             fontSize: 12,
-                            color: item.fileProof != null && item.fileProof!.isNotEmpty
-                                ? const Color(0xFF38B2AC)
-                                : Colors.grey[500],
+                            color:
+                                item.fileProof != null &&
+                                        item.fileProof!.isNotEmpty
+                                    ? const Color(0xFF38B2AC)
+                                    : Colors.grey[500],
                           ),
                         ),
                       ],
@@ -1074,16 +1187,16 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: PoppinsTextStyle.bold.copyWith(fontSize: 15),
-              ),
+              Text(label, style: PoppinsTextStyle.bold.copyWith(fontSize: 15)),
               const SizedBox(height: 6),
               _buildInfoRow(Icons.access_time, time, Colors.grey[600]!),
               if (status != null && status.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(status).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -1115,13 +1228,14 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                 const SizedBox(height: 8),
                 FutureBuilder<String>(
                   future: _getAddressFromCoords(address),
-                  builder: (context, snapshot) => _buildInfoRow(
-                    Icons.location_on,
-                    snapshot.data ?? 'Memuat...',
-                    Colors.grey[500]!,
-                    maxLines: 2,
-                    fontSize: 11,
-                  ),
+                  builder:
+                      (context, snapshot) => _buildInfoRow(
+                        Icons.location_on,
+                        snapshot.data ?? 'Memuat...',
+                        Colors.grey[500]!,
+                        maxLines: 2,
+                        fontSize: 11,
+                      ),
                 ),
               ],
             ],
@@ -1170,11 +1284,7 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
               color: AppColor.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.history,
-              size: 64,
-              color: AppColor.primaryColor,
-            ),
+            child: Icon(Icons.history, size: 64, color: AppColor.primaryColor),
           ),
           const SizedBox(height: 24),
           Text(
@@ -1196,4 +1306,5 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
         ],
       ),
     );
-  }}
+  }
+}
