@@ -210,6 +210,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               '📊 Payslip Response Status untuk ${employee['name']}: ${payslipResponse.statusCode}',
             );
 
+            // ✅ GANTI BAGIAN INI (sekitar baris 157-183):
+
             if (payslipResponse.statusCode == 200) {
               var responseData = json.decode(payslipResponse.body);
               print('✅ Response Data: $responseData');
@@ -217,23 +219,38 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               var payslipData = responseData['data'];
               print('💰 Payslip Data: $payslipData');
 
-              slipGajiList.add(
-                KaryawanSlipGaji(
-                  id: employee['id'] ?? 0,
-                  nik: employee['nik']?.toString() ?? '',
-                  namaKaryawan: employee['name']?.toString() ?? 'Unknown',
-                  jabatan: employee['jabatan']?.toString() ?? '',
-                  gajiPokok: _parseToInt(payslipData['total_basic_salary']),
-                  tunjangan: _parseToInt(payslipData['total_allowance']),
-                  potongan: _parseToInt(payslipData['total_deduction']),
-                  pajak: _parseToInt(payslipData['tax']),
-                  foto: null,
-                ),
-              );
+              // ✅ TAMBAH VALIDASI: Hanya tambahkan jika ada data gaji
+              int gajiPokok = _parseToInt(payslipData['total_basic_salary']);
+              int tunjangan = _parseToInt(payslipData['total_allowance']);
+              int potongan = _parseToInt(payslipData['total_deduction']);
+              int pajak = _parseToInt(payslipData['tax']);
 
-              print(
-                '✔️ Berhasil menambahkan slip gaji untuk ${employee['name']}',
-              );
+              // Hitung gaji bersih
+              int gajiBersih = gajiPokok + tunjangan - (potongan + pajak);
+
+              // ✅ FILTER: Hanya tampilkan jika gaji bersih > 0 ATAU minimal ada gaji pokok
+              if (gajiBersih > 0 || gajiPokok > 0) {
+                slipGajiList.add(
+                  KaryawanSlipGaji(
+                    id: employee['id'] ?? 0,
+                    nik: employee['nik']?.toString() ?? '',
+                    namaKaryawan: employee['name']?.toString() ?? 'Unknown',
+                    jabatan: employee['jabatan']?.toString() ?? '',
+                    gajiPokok: gajiPokok,
+                    tunjangan: tunjangan,
+                    potongan: potongan,
+                    pajak: pajak,
+                    foto: null,
+                  ),
+                );
+                print(
+                  '✔️ Berhasil menambahkan slip gaji untuk ${employee['name']}',
+                );
+              } else {
+                print(
+                  '⏭️ Skip ${employee['name']} - Belum ada data gaji (gaji bersih: $gajiBersih)',
+                );
+              }
             } else {
               print('❌ Error Payslip untuk ${employee['name']}:');
               print('   Status: ${payslipResponse.statusCode}');
@@ -611,7 +628,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'NIK: ${item.nik} • ${item.jabatan}',
+                              'Nomor Karyawan: ${item.nik} • ${item.jabatan}',
                               style: PoppinsTextStyle.regular.copyWith(
                                 fontSize: 12,
                                 color: Colors.white.withOpacity(0.9),
@@ -674,7 +691,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                                 [
                                   DetailRow('Potongan Harian', item.potongan),
                                   if (item.pajak > 0)
-                                    DetailRow('Pajak Bulanan', item.pajak),
+                                    DetailRow('Iuran Bulanan', item.pajak),
                                 ],
                               ),
                               const SizedBox(height: 16),
@@ -695,7 +712,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'Periode: $_selectedBulan\n${item.pajak > 0 ? "Pajak sudah dipotong (akhir bulan)" : "Pajak belum dipotong (belum akhir bulan)"}',
+                                        'Periode: $_selectedBulan\n${item.pajak > 0 ? "Iuran sudah dipotong (akhir bulan)" : "Iuran belum dipotong (belum akhir bulan)"}',
                                         style: PoppinsTextStyle.regular
                                             .copyWith(
                                               fontSize: 11,
@@ -1204,12 +1221,12 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                     children: [
                       _buildPdfTableCell('No', isHeader: true),
                       _buildPdfTableCell('Nama', isHeader: true),
-                      _buildPdfTableCell('NIK', isHeader: true),
+                      _buildPdfTableCell('Nomor Karyawan', isHeader: true),
                       _buildPdfTableCell('Jabatan', isHeader: true),
                       _buildPdfTableCell('Gaji Pokok', isHeader: true),
                       _buildPdfTableCell('Tunjangan', isHeader: true),
                       _buildPdfTableCell('Potongan', isHeader: true),
-                      _buildPdfTableCell('Pajak', isHeader: true),
+                      _buildPdfTableCell('Iuran Bulanan', isHeader: true),
                       _buildPdfTableCell('Gaji Bersih', isHeader: true),
                     ],
                   ),
@@ -1396,20 +1413,20 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                 ),
               )
               : _filteredList.isEmpty
-              ? Column(
+              ? ListView(
                 children: [
                   _buildHeaderSection(),
                   _buildYearlyChart(),
-                  Expanded(child: _buildEmptyState()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: _buildEmptyState(),
+                  ),
                 ],
               )
               : CustomScrollView(
                 slivers: [
-                  // Header section jadi non-scrollable (sticky)
                   SliverToBoxAdapter(child: _buildHeaderSection()),
-                  // Chart
                   SliverToBoxAdapter(child: _buildYearlyChart()),
-                  // List slip gaji
                   SliverPadding(
                     padding: const EdgeInsets.all(16),
                     sliver: SliverList(
@@ -1425,110 +1442,223 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
   }
 
   Widget _buildYearlyChart() {
-  if (_isLoadingChart) {
+    if (_isLoadingChart) {
+      return Container(
+        height: 300,
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_yearlyData.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // List nama bulan Indonesia untuk mapping yang akurat
+    const List<String> indoMonths = [
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+
+    double maxDataValue = _yearlyData
+        .map((e) => (e['total'] as num).toDouble())
+        .reduce((a, b) => a > b ? a : b);
+
+    // Bulatkan ke atas untuk nilai yang lebih rapi
+    double maxY = ((maxDataValue * 1.1) / 5).ceilToDouble() * 5;
+    double interval = maxY / 5;
+
     return Container(
-      height: 300,
-      child: Center(child: CircularProgressIndicator()),
-    );
-  }
-
-  if (_yearlyData.isEmpty) {
-    return SizedBox.shrink();
-  }
-
-  double maxY = _yearlyData
-      .map((e) => (e['total'] as int).toDouble())
-      .reduce((a, b) => a > b ? a : b);
-
-  return Container(
-    margin: const EdgeInsets.all(16),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.1),
-          blurRadius: 10,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Total Gaji Bersih per Bulan - $_selectedYear',
-          style: PoppinsTextStyle.bold.copyWith(
-            fontSize: 16,
-            color: Colors.black,
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 250, // ✅ Bisa dikurangi karena ga ada label bulan
-          child: LineChart(
-            LineChartData(
-              gridData: FlGridData(show: true, drawVerticalLine: false),
-              titlesData: FlTitlesData(
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 70,
-                    getTitlesWidget: (value, meta) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Text(
-                          _formatCurrency(value.toInt()),
-                          style: PoppinsTextStyle.regular.copyWith(
-                            fontSize: 9,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Total Gaji Bersih per Bulan - $_selectedYear',
+            style: PoppinsTextStyle.bold.copyWith(
+              fontSize: 16,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 220,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: interval,
+                  getDrawingHorizontalLine:
+                      (value) => FlLine(
+                        color: Colors.grey.withOpacity(0.2),
+                        strokeWidth: 1,
+                      ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 80,
+                      interval: interval,
+                      getTitlesWidget: (value, meta) {
+                        // Hanya tampilkan label yang sesuai dengan interval
+                        if ((value % interval).abs() > 0.01)
+                          return const SizedBox.shrink();
+                        if (value < 0 || value > maxY)
+                          return const SizedBox.shrink();
+
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            _formatCurrency(value.toInt()),
+                            style: PoppinsTextStyle.semiBold.copyWith(
+                              fontSize: 10,
+                              color: Colors.black87,
+                            ),
+                            textAlign: TextAlign.right,
                           ),
-                          textAlign: TextAlign.right,
-                        ),
-                      );
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                ),
+                minX: 0,
+                maxX: (_yearlyData.length - 1).toDouble(),
+                minY: 0,
+                maxY: maxY,
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor:
+                        (touchedSpot) => Colors.black.withOpacity(0.8),
+                    tooltipPadding: const EdgeInsets.all(12),
+                    tooltipRoundedRadius: 8,
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final int index = spot.x.toInt();
+                        if (index < 0 || index >= _yearlyData.length)
+                          return null;
+
+                        final monthData = _yearlyData[index];
+                        String monthDisplayName = '';
+
+                        // Ambil angka bulan (1-12) dari data
+                        int monthNum = 0;
+                        if (monthData['month'] != null) {
+                          monthNum =
+                              monthData['month'] is int
+                                  ? monthData['month']
+                                  : int.tryParse(
+                                        monthData['month'].toString(),
+                                      ) ??
+                                      0;
+                        }
+
+                        // Gunakan nama bulan dari list indoMonths
+                        if (monthNum >= 1 && monthNum <= 12) {
+                          monthDisplayName = indoMonths[monthNum];
+                        } else {
+                          monthDisplayName = 'Bulan ${index + 1}';
+                        }
+
+                        return LineTooltipItem(
+                          '$monthDisplayName\n',
+                          PoppinsTextStyle.bold.copyWith(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: _formatCurrency(spot.y.toInt()),
+                              style: PoppinsTextStyle.medium.copyWith(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList();
                     },
                   ),
                 ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: false), // ✅ MATIKAN
-                ),
-                rightTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                topTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-              ),
-              borderData: FlBorderData(show: true),
-              minX: 0,
-              maxX: (_yearlyData.length - 1).toDouble(),
-              minY: 0,
-              maxY: maxY * 1.1, // ✅ Kurangin space karena ga ada label
-              lineBarsData: [
-                LineChartBarData(
-                  spots: _yearlyData.asMap().entries.map((entry) {
-                    return FlSpot(
-                      entry.key.toDouble(),
-                      (entry.value['total'] as int).toDouble(),
-                    );
-                  }).toList(),
-                  isCurved: true,
-                  color: AppColor.primaryColor,
-                  barWidth: 3,
-                  dotData: FlDotData(show: true),
-                  belowBarData: BarAreaData(
-                    show: true,
-                    color: AppColor.primaryColor.withOpacity(0.1),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots:
+                        _yearlyData.asMap().entries.map((entry) {
+                          return FlSpot(
+                            entry.key.toDouble(),
+                            (entry.value['total'] as num).toDouble(),
+                          );
+                        }).toList(),
+                    isCurved: true,
+                    color: AppColor.primaryColor,
+                    barWidth: 4,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter:
+                          (spot, percent, barData, index) => FlDotCirclePainter(
+                            radius: 5,
+                            color: Colors.white,
+                            strokeWidth: 3,
+                            strokeColor: AppColor.primaryColor,
+                          ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColor.primaryColor.withOpacity(0.3),
+                          AppColor.primaryColor.withOpacity(0.01),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildHeaderSection() {
     return Container(
@@ -1575,7 +1705,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
             controller: _searchController,
             onChanged: _filterSearch,
             decoration: InputDecoration(
-              hintText: 'Cari nama, NIK, atau jabatan...',
+              hintText: 'Cari nama, Nomor Karyawan, atau jabatan...',
               hintStyle: PoppinsTextStyle.regular.copyWith(
                 fontSize: 13,
                 color: Colors.grey[400],
@@ -1774,7 +1904,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'NIK: ${item.nik}',
+                            'Nomor Karyawan: ${item.nik}',
                             style: PoppinsTextStyle.regular.copyWith(
                               fontSize: 11,
                               color: Colors.grey[600],

@@ -24,6 +24,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _storage = const FlutterSecureStorage();
   final String _baseUrl = '$baseUrl/api/karyawan';
 
+  // Taman Wisata Sigantang Nambo
+  // static const double LOKASI_LAT = -6.4127;
+  // static const double LOKASI_LNG = 106.9168;
+
   //kampus
   // static const double LOKASI_LAT = -6.3365;
   // static const double LOKASI_LNG = 106.8358;

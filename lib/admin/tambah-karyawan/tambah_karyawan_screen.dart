@@ -105,7 +105,7 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
     }
 
     if (_generatedNIK.isEmpty) {
-      _showError('NIK belum di-generate. Silakan coba lagi.');
+      _showError('Nomor Karyawan belum di-generate. Silakan coba lagi.');
       return;
     }
 
@@ -219,7 +219,7 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
                     const CircularProgressIndicator(),
                     const SizedBox(height: 16),
                     Text(
-                      'Mempersiapkan NIK...',
+                      'Mempersiapkan Nomor Karyawan...',
                       style: PoppinsTextStyle.medium.copyWith(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -334,7 +334,7 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'NIK (Nomor Induk Karyawan)',
+                                        'Nomor Karyawan',
                                         style: PoppinsTextStyle.semiBold
                                             .copyWith(
                                               fontSize: 12,
@@ -457,12 +457,12 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
 
                       _buildTextField(
                         controller: _pekerjaanController,
-                        label: 'Jabatan/Posisi',
-                        hint: 'Masukkan jabatan atau posisi',
+                        label: 'Jenis Pekerjaan',
+                        hint: 'Masukkan jenis pekerjaan',
                         icon: Icons.work_rounded,
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Jabatan tidak boleh kosong';
+                            return 'Jenis pekerjaan tidak boleh kosong';
                           }
                           return null;
                         },
@@ -488,7 +488,7 @@ class _AdminTambahKaryawanScreenState extends State<AdminTambahKaryawanScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'NIK akan digunakan untuk login karyawan bersama dengan password',
+                                'Nomor Karyawan akan digunakan untuk login karyawan bersama dengan password',
                                 style: PoppinsTextStyle.regular.copyWith(
                                   fontSize: 11,
                                   color: Colors.blue.shade900,

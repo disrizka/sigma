@@ -446,7 +446,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'NIK: $nik',
+                                  'Nomor Karyawan: $nik',
                                   style: PoppinsTextStyle.medium.copyWith(
                                     fontSize: 12,
                                     color: Colors.grey.shade600,

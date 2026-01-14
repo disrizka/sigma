@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class HistoryItem {
   final String itemType;
@@ -645,19 +646,76 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
     }
   }
 
-  Future<String> _getAddressFromCoords(String? coords) async {
-    if (coords == null || !coords.contains(',')) return "-";
-    try {
-      final parts = coords.split(',');
-      final placemarks = await placemarkFromCoordinates(
-        double.parse(parts[0]),
-        double.parse(parts[1]),
-      );
-      final place = placemarks[0];
-      return "${place.street}, ${place.locality}";
-    } catch (_) {
-      return "Gagal memuat alamat";
+  // HAPUS atau COMMENT fungsi _getAddressFromCoords yang lama
+  // Future<String> _getAddressFromCoords(String? coords) async { ... }
+
+  // TAMBAHKAN fungsi baru ini:
+  void _showLocationMap(String locationString, String title) {
+    if (locationString == null || !locationString.contains(',')) {
+      _showSnackBar('Data lokasi tidak valid.', isError: true);
+      return;
     }
+
+    final parts = locationString.split(',');
+    final lat = double.tryParse(parts[0].trim());
+    final lon = double.tryParse(parts[1].trim());
+
+    if (lat == null || lon == null) {
+      _showSnackBar('Koordinat lokasi tidak valid.', isError: true);
+      return;
+    }
+
+    final location = LatLng(lat, lon);
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 10, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on, color: AppColor.primaryColor),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: PoppinsTextStyle.bold.copyWith(fontSize: 16),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: 400,
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: location,
+                      zoom: 17,
+                    ),
+                    markers: {
+                      Marker(
+                        markerId: MarkerId(title),
+                        position: location,
+                        infoWindow: InfoWindow(title: title),
+                      ),
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
   }
 
   String _formatDate(DateTime? dt) =>
@@ -1088,16 +1146,42 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
                 if (item.checkInLocation != null &&
                     item.checkInLocation != "-") ...[
                   const SizedBox(height: 10),
-                  FutureBuilder<String>(
-                    future: _getAddressFromCoords(item.checkInLocation),
-                    builder:
-                        (context, snapshot) => _buildInfoRow(
-                          Icons.location_on,
-                          snapshot.data ?? 'Memuat...',
-                          Colors.grey[500]!,
-                          maxLines: 2,
-                          fontSize: 11,
+                  InkWell(
+                    onTap:
+                        () => _showLocationMap(
+                          item.checkInLocation!,
+                          'Lokasi Pengajuan',
                         ),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.location_on_rounded,
+                            size: 16,
+                            color: Colors.green.shade700,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Lihat Lokasi',
+                            style: PoppinsTextStyle.medium.copyWith(
+                              fontSize: 12,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -1226,16 +1310,38 @@ class _AdminEmployeeHistoryScreenState extends State<AdminEmployeeHistoryScreen>
               ],
               if (address != null && address != "-") ...[
                 const SizedBox(height: 8),
-                FutureBuilder<String>(
-                  future: _getAddressFromCoords(address),
-                  builder:
-                      (context, snapshot) => _buildInfoRow(
-                        Icons.location_on,
-                        snapshot.data ?? 'Memuat...',
-                        Colors.grey[500]!,
-                        maxLines: 2,
-                        fontSize: 11,
-                      ),
+                InkWell(
+                  onTap: () => _showLocationMap(address, 'Lokasi $label'),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.location_on_rounded,
+                          size: 16,
+                          color: Colors.green.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Lihat Lokasi',
+                          style: PoppinsTextStyle.medium.copyWith(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ],

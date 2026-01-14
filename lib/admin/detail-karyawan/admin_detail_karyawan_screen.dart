@@ -46,6 +46,13 @@ class _AdminDataKaryawanScreenState extends State<AdminDataKaryawanScreen> {
   bool _isLoading = true;
   List<UserModel> _employees = [];
 
+  // Getter untuk karyawan aktif dan non-aktif
+  List<UserModel> get _activeEmployees =>
+      _employees.where((e) => e.status == 'aktif').toList();
+  
+  List<UserModel> get _inactiveEmployees =>
+      _employees.where((e) => e.status == 'tidak_aktif').toList();
+
   @override
   void initState() {
     super.initState();
@@ -256,7 +263,7 @@ class _AdminDataKaryawanScreenState extends State<AdminDataKaryawanScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'NIK: ${employee.nik}',
+                                'Nomor Karyawan: ${employee.nik}',
                                 style: PoppinsTextStyle.regular.copyWith(
                                   fontSize: 12,
                                   color: Colors.grey[600],
@@ -399,7 +406,7 @@ class _AdminDataKaryawanScreenState extends State<AdminDataKaryawanScreen> {
       ),
       body: Column(
         children: [
-          // Enhanced Header Card with Gradient
+          // Enhanced Header Card with Gradient - HANYA KARYAWAN AKTIF
           Container(
             margin: const EdgeInsets.all(20),
             padding: const EdgeInsets.all(24),
@@ -438,7 +445,7 @@ class _AdminDataKaryawanScreenState extends State<AdminDataKaryawanScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Total Karyawan',
+                        'Total Karyawan Aktif',
                         style: PoppinsTextStyle.medium.copyWith(
                           fontSize: 14,
                           color: Colors.white70,
@@ -446,7 +453,7 @@ class _AdminDataKaryawanScreenState extends State<AdminDataKaryawanScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${_employees.length}',
+                        '${_activeEmployees.length}',
                         style: PoppinsTextStyle.bold.copyWith(
                           fontSize: 32,
                           color: Colors.white,
@@ -503,14 +510,103 @@ class _AdminDataKaryawanScreenState extends State<AdminDataKaryawanScreen> {
                     : RefreshIndicator(
                       onRefresh: _fetchEmployees,
                       color: Color(0xFF2C3E50),
-                      child: ListView.builder(
+                      child: ListView(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                        itemCount: _employees.length,
-                        itemBuilder:
-                            (context, index) =>
-                                _buildEmployeeCard(_employees[index]),
+                        children: [
+                          // Karyawan Aktif
+                          if (_activeEmployees.isNotEmpty) ...[
+                            ..._activeEmployees.map((employee) => 
+                              _buildEmployeeCard(employee)
+                            ),
+                          ],
+                          
+                          // Divider dan Header Non-Aktif
+                          if (_inactiveEmployees.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            _buildInactiveHeader(),
+                            const SizedBox(height: 16),
+                            ..._inactiveEmployees.map((employee) => 
+                              _buildEmployeeCard(employee)
+                            ),
+                          ],
+                        ],
                       ),
                     ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInactiveHeader() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFFFEBEE), Color(0xFFFFCDD2)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Color(0xFFD32F2F).withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Color(0xFFD32F2F).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.person_off_rounded,
+              color: Color(0xFFD32F2F),
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Karyawan Non-Aktif',
+                  style: PoppinsTextStyle.bold.copyWith(
+                    fontSize: 16,
+                    color: Color(0xFFD32F2F),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Total: ${_inactiveEmployees.length} karyawan',
+                  style: PoppinsTextStyle.medium.copyWith(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: Color(0xFFD32F2F),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              '${_inactiveEmployees.length}',
+              style: PoppinsTextStyle.bold.copyWith(
+                fontSize: 18,
+                color: Colors.white,
+              ),
+            ),
           ),
         ],
       ),

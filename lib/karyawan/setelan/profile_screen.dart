@@ -264,7 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildDivider(),
           _buildInfoItem(
             icon: Icons.badge_outlined,
-            label: 'NIK',
+            label: 'Nomor Karyawan',
             value: userData!['nik'] ?? '-',
             iconColor: Colors.green,
           ),

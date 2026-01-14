@@ -47,9 +47,9 @@ class HelpScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             _buildHelpItem(
-              title: "Login dengan NIK & Password",
+              title: "Login dengan Nomor Karyawan & Password",
               description:
-                  "Masuk menggunakan NIK dan password yang diberikan oleh admin. Anda bisa mengubah password sendiri di menu Profil > Ubah Password.",
+                  "Masuk menggunakan Nomor Karyawan dan password yang diberikan oleh admin. Anda bisa mengubah password sendiri di menu Profil > Ubah Password.",
               icon: Icons.login,
               color: Colors.blueAccent,
             ),

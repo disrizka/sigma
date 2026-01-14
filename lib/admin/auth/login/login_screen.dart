@@ -127,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Menggunakan _nikController
                     controller: _nikController,
                     decoration: InputDecoration(
-                      hintText: "NIK",
+                      hintText: "Nomor Unik",
                       hintStyle: PoppinsTextStyle.regular.copyWith(
                         color: Colors.grey[600],
                         fontSize: 13,

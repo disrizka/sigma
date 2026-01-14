@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
@@ -77,15 +76,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   bool _isLoading = true;
   List<PengajuanItem> _pendingApprovals = [];
-  int _totalKaryawan = 0;
+  // int _totalKaryawan = 0;
+  int _totalKaryawanAktif = 0;
 
   @override
   void initState() {
     super.initState();
     _loadData();
   }
-
-  // --- FUNGSI-FUNGSI LOGIKA & API ---
 
   Future<void> _loadData() async {
     if (!mounted) return;
@@ -96,6 +94,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     final token = await _storage.read(key: 'auth_token');
 
     try {
+      // Load dashboard data
       final response = await http
           .get(
             Uri.parse('$_baseUrl/admin/dashboard'),
@@ -112,7 +111,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
         if (mounted) {
           setState(() {
-            _totalKaryawan = data['total_karyawan'];
             _pendingApprovals =
                 pendingList
                     .map((item) => PengajuanItem.fromJson(item))
@@ -122,6 +120,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       } else {
         _showError('Gagal memuat data: ${response.body}');
       }
+
+      // Load active employees count separately
+      await _loadActiveEmployeesCount();
     } catch (e) {
       _showError('Terjadi kesalahan koneksi: $e');
     } finally {
@@ -130,6 +131,82 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  // Future<void> _loadData() async {
+  //   if (!mounted) return;
+  //   setState(() {
+  //     _isLoading = true;
+  //   });
+
+  //   final token = await _storage.read(key: 'auth_token');
+
+  //   try {
+  //     final response = await http
+  //         .get(
+  //           Uri.parse('$_baseUrl/admin/dashboard'),
+  //           headers: {
+  //             'Authorization': 'Bearer $token',
+  //             'Accept': 'application/json',
+  //           },
+  //         )
+  //         .timeout(const Duration(seconds: 15));
+
+  //     if (response.statusCode == 200) {
+  //       final data = json.decode(response.body);
+  //       final List<dynamic> pendingList = data['pending_requests'];
+
+  //       // if (mounted) {
+  //       //   setState(() {
+  //       //     _totalKaryawan = data['total_karyawan'];
+  //       //     _pendingApprovals =
+  //       //         pendingList
+  //       //             .map((item) => PengajuanItem.fromJson(item))
+  //       //             .toList();
+  //       //   });
+  //       // }
+
+  //     } else {
+  //       _showError('Gagal memuat data: ${response.body}');
+  //     }
+  //   } catch (e) {
+  //     _showError('Terjadi kesalahan koneksi: $e');
+  //   } finally {
+  //     if (mounted) {
+  //       setState(() {
+  //         _isLoading = false;
+  //       });
+  //     }
+  //   }
+  // }
+  Future<void> _loadActiveEmployeesCount() async {
+    final token = await _storage.read(key: 'auth_token');
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/admin/employees'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        if (mounted) {
+          setState(() {
+            // Filter hanya karyawan dengan status 'aktif'
+            _totalKaryawanAktif =
+                data.where((item) => item['status'] == 'aktif').length;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading employee count: $e');
+      // Jika error, set ke 0 atau keep existing value
     }
   }
 
@@ -557,12 +634,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Widget _buildStatisticsRow() {
     return Row(
       children: [
+        // Expanded(
+        //   child: _buildStatCard(
+        //     icon: Icons.people,
+        //     iconColor: Colors.blue,
+        //     title: 'Total Karyawan',
+        //     value: '$_totalKaryawan',
+        //   ),
+        // ),
         Expanded(
           child: _buildStatCard(
             icon: Icons.people,
             iconColor: Colors.blue,
-            title: 'Total Karyawan',
-            value: '$_totalKaryawan',
+            title: 'Total Karyawan Aktif',
+            value: '$_totalKaryawanAktif',
           ),
         ),
         const SizedBox(width: 16),
