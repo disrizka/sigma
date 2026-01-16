@@ -562,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildStatItem(
                 AppImage.boxCuti,
-                'Sisa Cuti',
+                'Jatah Cuti',
                 isLoadingStats ? '-' : '${monthlyStats?['sisa_cuti'] ?? 12}',
                 Colors.blue,
               ),

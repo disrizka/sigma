@@ -27,6 +27,7 @@ class _CheckinScreenState extends State<CheckinScreen> {
   // Taman Wisata Sigantang Nambo
   // static const double LOKASI_LAT = -6.4127;
   // static const double LOKASI_LNG = 106.9168;
+
   //kampus
   // static const double LOKASI_LAT = -6.3365;
   // static const double LOKASI_LNG = 106.8358;

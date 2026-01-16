@@ -40,7 +40,6 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
     _loadSlipGaji();
   }
 
-  // 🔥 GENERATE PDF LANGSUNG DARI FLUTTER
   Future<Uint8List> _generatePdfBytes() async {
     final doc = pw.Document();
 
@@ -52,145 +51,252 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
     final int totalPendapatan = totalGajiPokok + totalTunjangan;
     final int totalPengurangan = totalPotongan + pajak;
 
+    // Hitung statistik kehadiran
+    int jumlahCuti = 0;
+    int jumlahIzin = 0;
+    int jumlahAlpha = 0;
+    
+    if (slipGajiData?['daily_details'] != null) {
+      final dailyDetails = slipGajiData!['daily_details'] as List;
+      for (var detail in dailyDetails) {
+        final status = (detail['status'] as String).toLowerCase();
+        if (status == 'cuti') jumlahCuti++;
+        if (status == 'izin') jumlahIzin++;
+        if (status == 'alpha') jumlahAlpha++;
+      }
+    }
+
     doc.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(30),
         build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Header
-              pw.Container(
-                padding: const pw.EdgeInsets.all(15),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.blue900,
-                  borderRadius: pw.BorderRadius.circular(8),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'SLIP GAJI KARYAWAN',
-                      style: pw.TextStyle(
-                        fontSize: 20,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.white,
-                      ),
+          return [
+            // Header
+            pw.Container(
+              padding: const pw.EdgeInsets.all(15),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.blue900,
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'SLIP GAJI KARYAWAN',
+                    style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.white,
                     ),
-                    pw.SizedBox(height: 4),
-                    pw.Text(
-                      'Periode: $selectedMonth',
-                      style: pw.TextStyle(fontSize: 12, color: PdfColors.white),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Periode: $selectedMonth',
+                    style: pw.TextStyle(fontSize: 12, color: PdfColors.white),
+                  ),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 20),
+
+            // Info Tanggal Cetak
+            _buildInfoRow(
+              'Tanggal Cetak',
+              DateFormat('dd MMMM yyyy', 'id_ID').format(DateTime.now()),
+            ),
+
+            pw.SizedBox(height: 20),
+            pw.Divider(thickness: 2),
+            pw.SizedBox(height: 15),
+
+            // Ringkasan Kehadiran
+            pw.Text(
+              'RINGKASAN KEHADIRAN',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.blue900,
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey200,
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem('Cuti', jumlahCuti, PdfColors.blue),
+                  _buildStatItem('Izin', jumlahIzin, PdfColors.purple),
+                  _buildStatItem('Alpha', jumlahAlpha, PdfColors.red),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 20),
+            pw.Divider(thickness: 2),
+            pw.SizedBox(height: 15),
+
+            // Pendapatan
+            pw.Text(
+              'PENDAPATAN',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.green900,
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            _buildAmountRow('Gaji Pokok', totalGajiPokok),
+            _buildAmountRow('Tunjangan Makan & Transport', totalTunjangan),
+            pw.Divider(thickness: 1),
+            _buildAmountRow('Total Pendapatan', totalPendapatan, isBold: true),
+
+            pw.SizedBox(height: 20),
+
+            // Potongan
+            pw.Text(
+              'POTONGAN',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.red900,
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            _buildAmountRow('Potongan Keterlambatan', totalPotongan),
+            _buildAmountRow('Pajak Bulanan', pajak),
+            pw.Divider(thickness: 1),
+            _buildAmountRow('Total Potongan', totalPengurangan, isBold: true),
+
+            pw.SizedBox(height: 20),
+            pw.Divider(thickness: 2),
+            pw.SizedBox(height: 10),
+
+            // Total Diterima
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey300,
+                borderRadius: pw.BorderRadius.circular(6),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'TOTAL GAJI DITERIMA',
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
                     ),
-                  ],
-                ),
-              ),
-
-              pw.SizedBox(height: 20),
-
-              // Info Tanggal Cetak
-              _buildInfoRow(
-                'Tanggal Cetak',
-                DateFormat('dd MMMM yyyy', 'id_ID').format(DateTime.now()),
-              ),
-
-              pw.SizedBox(height: 20),
-              pw.Divider(thickness: 2),
-              pw.SizedBox(height: 15),
-
-              // Pendapatan
-              pw.Text(
-                'PENDAPATAN',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.green900,
-                ),
-              ),
-              pw.SizedBox(height: 10),
-              _buildAmountRow('Gaji Pokok', totalGajiPokok),
-              _buildAmountRow('Tunjangan Makan & Transport', totalTunjangan),
-              pw.Divider(thickness: 1),
-              _buildAmountRow(
-                'Total Pendapatan',
-                totalPendapatan,
-                isBold: true,
-              ),
-
-              pw.SizedBox(height: 20),
-
-              // Potongan
-              pw.Text(
-                'POTONGAN',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.red900,
-                ),
-              ),
-              pw.SizedBox(height: 10),
-              _buildAmountRow('Potongan Keterlambatan', totalPotongan),
-              _buildAmountRow('Pajak Bulanan', pajak),
-              pw.Divider(thickness: 1),
-              _buildAmountRow('Total Potongan', totalPengurangan, isBold: true),
-
-              pw.SizedBox(height: 20),
-              pw.Divider(thickness: 2),
-              pw.SizedBox(height: 10),
-
-              // Total Diterima
-              pw.Container(
-                padding: const pw.EdgeInsets.all(12),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.grey300,
-                  borderRadius: pw.BorderRadius.circular(6),
-                ),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'TOTAL GAJI DITERIMA',
-                      style: pw.TextStyle(
-                        fontSize: 14,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
+                  ),
+                  pw.Text(
+                    'Rp ${NumberFormat('#,###', 'id_ID').format(totalDiterima)}',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
                     ),
-                    pw.Text(
-                      'Rp ${NumberFormat('#,###', 'id_ID').format(totalDiterima)}',
-                      style: pw.TextStyle(
-                        fontSize: 16,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.blue900,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+            ),
+
+            pw.SizedBox(height: 20),
+            pw.Divider(thickness: 2),
+            pw.SizedBox(height: 15),
+
+            // RINCIAN PER HARI - BARU
+            pw.Text(
+              'RINCIAN SLIP GAJI PER HARI',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.blue900,
+              ),
+            ),
+            pw.SizedBox(height: 10),
+
+            // Tabel Rincian Per Hari
+            if (slipGajiData?['daily_details'] != null)
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(2),
+                  1: const pw.FlexColumnWidth(2),
+                  2: const pw.FlexColumnWidth(1.5),
+                  3: const pw.FlexColumnWidth(1.5),
+                  4: const pw.FlexColumnWidth(1.5),
+                  5: const pw.FlexColumnWidth(1.5),
+                  6: const pw.FlexColumnWidth(2),
+                },
+                children: [
+                  // Header Tabel
+                  pw.TableRow(
+                    decoration: pw.BoxDecoration(color: PdfColors.blue100),
+                    children: [
+                      _buildTableCell('Tanggal', isHeader: true),
+                      _buildTableCell('Status', isHeader: true),
+                      _buildTableCell('Masuk', isHeader: true),
+                      _buildTableCell('Keluar', isHeader: true),
+                      _buildTableCell('Gaji', isHeader: true),
+                      _buildTableCell('Tunjangan', isHeader: true),
+                      _buildTableCell('Potongan', isHeader: true),
+                    ],
+                  ),
+                  // Data Rows
+                  ...(slipGajiData!['daily_details'] as List).map((detail) {
+                    return pw.TableRow(
+                      children: [
+                        _buildTableCell(
+                          DateFormat('dd MMM', 'id_ID').format(
+                            DateTime.parse(detail['date']),
+                          ),
+                        ),
+                        _buildTableCell(_mapStatus(detail['status'])),
+                        _buildTableCell(detail['check_in'] ?? '-'),
+                        _buildTableCell(detail['check_out'] ?? '-'),
+                        _buildTableCell(
+                          NumberFormat('#,###').format(detail['basic_salary'] ?? 0),
+                        ),
+                        _buildTableCell(
+                          NumberFormat('#,###').format(detail['allowance'] ?? 0),
+                        ),
+                        _buildTableCell(
+                          NumberFormat('#,###').format(detail['deduction'] ?? 0),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ],
               ),
 
-              pw.Spacer(),
+            pw.SizedBox(height: 20),
 
-              // Footer
-              pw.Divider(thickness: 1),
-              pw.SizedBox(height: 10),
-              pw.Text(
-                'Catatan: Slip gaji ini dibuat secara otomatis oleh sistem.',
-                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-              ),
-              pw.Text(
-                'Untuk informasi lebih lanjut, hubungi HRD.',
-                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-              ),
-            ],
-          );
+            // Footer
+            pw.Divider(thickness: 1),
+            pw.SizedBox(height: 10),
+            pw.Text(
+              'Catatan: Slip gaji ini dibuat secara otomatis oleh sistem.',
+              style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+            ),
+            pw.Text(
+              'Untuk informasi lebih lanjut, hubungi HRD.',
+              style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+            ),
+          ];
         },
       ),
     );
 
     return await doc.save();
   }
-
-  pw.Widget _buildInfoRow(String label, String value) {
+pw.Widget _buildInfoRow(String label, String value) {
     return pw.Row(
       children: [
         pw.Container(
@@ -235,8 +341,55 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
       ),
     );
   }
+  // Helper untuk statistik kehadiran
+  pw.Widget _buildStatItem(String label, int count, PdfColor color) {
+    return pw.Column(
+      children: [
+        pw.Text(
+          label,
+          style: pw.TextStyle(
+            fontSize: 10,
+            fontWeight: pw.FontWeight.bold,
+            color: color,
+          ),
+        ),
+        pw.SizedBox(height: 4),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(8),
+          decoration: pw.BoxDecoration(
+            color: color,
+            borderRadius: pw.BorderRadius.circular(8),
+          ),
+          child: pw.Text(
+            '$count',
+            style: pw.TextStyle(
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-  // 🔥 LIHAT PDF - PREVIEW
+  // Helper untuk cell tabel
+  pw.Widget _buildTableCell(String text, {bool isHeader = false}) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: isHeader ? 9 : 8,
+          fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+        textAlign: isHeader ? pw.TextAlign.center : pw.TextAlign.left,
+      ),
+    );
+  }
+
+  
+
   void _lihatPdf() async {
     if (slipGajiData == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1394,7 +1547,6 @@ class _SlipGajiScreenState extends State<SlipGajiScreen> {
   }
 }
 
-// PDF VIEWER PAGE
 class PDFViewerPage extends StatefulWidget {
   final Uint8List pdfBytes;
   final String title;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sigma/admin/absensi-karyawan/admin_absensi_karyawan_screen.dart';
 import 'package:sigma/api/api.dart';
@@ -25,11 +26,11 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'],
-      name: json['name'] ?? 'N/A',
-      nik: json['nik'] ?? 'N/A',
-      jabatan: json['jabatan'] ?? 'N/A',
-      status: json['status'] ?? 'aktif',
+      id: json['id'] ?? 0,
+      name: (json['name'] ?? 'N/A').toString().trim(),
+      nik: (json['nik'] ?? 'N/A').toString().trim(),
+      jabatan: (json['jabatan'] ?? 'N/A').toString().trim(),
+      status: (json['status'] ?? 'aktif').toString().trim().toLowerCase(),
     );
   }
 }
@@ -49,12 +50,18 @@ class _AdminListAbsensiKaryawanScreenState
   bool _isLoading = true;
   List<UserModel> _employees = [];
 
-  // Getter untuk karyawan aktif dan non-aktif
-  List<UserModel> get _activeEmployees =>
-      _employees.where((e) => e.status == 'aktif').toList();
+  // Getter untuk karyawan aktif dan non-aktif yang sudah diurutkan berdasarkan NIK
+  List<UserModel> get _activeEmployees {
+    final actives = _employees.where((e) => e.status == 'aktif').toList();
+    actives.sort((a, b) => a.nik.compareTo(b.nik));
+    return actives;
+  }
 
-  List<UserModel> get _inactiveEmployees =>
-      _employees.where((e) => e.status == 'tidak_aktif').toList();
+  List<UserModel> get _inactiveEmployees {
+    final inactives = _employees.where((e) => e.status == 'tidak_aktif').toList();
+    inactives.sort((a, b) => a.nik.compareTo(b.nik));
+    return inactives;
+  }
 
   @override
   void initState() {
@@ -79,18 +86,116 @@ class _AdminListAbsensiKaryawanScreenState
           )
           .timeout(const Duration(seconds: 15));
 
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            _employees = data.map((item) => UserModel.fromJson(item)).toList();
-          });
+        // Cek apakah response body kosong
+        if (response.body.isEmpty) {
+          if (mounted) {
+            setState(() {
+              _employees = [];
+            });
+          }
+          _showSnackBar('Response kosong dari server', isError: true);
+          return;
         }
+
+        // Parse JSON dengan error handling
+        try {
+          final dynamic jsonData = json.decode(response.body);
+          print('JSON Type: ${jsonData.runtimeType}');
+          
+          // Cek apakah data adalah List
+          if (jsonData is List) {
+            if (mounted) {
+              setState(() {
+                _employees = [];
+                for (var i = 0; i < jsonData.length; i++) {
+                  try {
+                    // Pastikan item adalah Map
+                    if (jsonData[i] is Map<String, dynamic>) {
+                      final Map<String, dynamic> item = Map<String, dynamic>.from(jsonData[i]);
+                      
+                      // Hanya ambil field yang dibutuhkan, abaikan field lain
+                      final cleanData = {
+                        'id': item['id'],
+                        'name': item['name'],
+                        'nik': item['nik'],
+                        'jabatan': item['jabatan'],
+                        'status': item['status'],
+                      };
+                      
+                      final employee = UserModel.fromJson(cleanData);
+                      _employees.add(employee);
+                      print('✓ Successfully parsed: ${employee.name} (${employee.nik})');
+                    }
+                  } catch (e) {
+                    print('✗ Error parsing employee at index $i');
+                    print('Data: ${jsonData[i]}');
+                    print('Error: $e');
+                    // Skip employee yang error, lanjut ke yang berikutnya
+                  }
+                }
+                print('Total employees loaded: ${_employees.length}');
+              });
+            }
+          } else {
+            // Jika response bukan List, cek apakah ada key 'data'
+            if (jsonData is Map && jsonData.containsKey('data')) {
+              final List<dynamic> data = jsonData['data'];
+              if (mounted) {
+                setState(() {
+                  _employees = [];
+                  for (var i = 0; i < data.length; i++) {
+                    try {
+                      if (data[i] is Map<String, dynamic>) {
+                        final Map<String, dynamic> item = Map<String, dynamic>.from(data[i]);
+                        
+                        // Hanya ambil field yang dibutuhkan
+                        final cleanData = {
+                          'id': item['id'],
+                          'name': item['name'],
+                          'nik': item['nik'],
+                          'jabatan': item['jabatan'],
+                          'status': item['status'],
+                        };
+                        
+                        final employee = UserModel.fromJson(cleanData);
+                        _employees.add(employee);
+                        print('✓ Successfully parsed: ${employee.name} (${employee.nik})');
+                      }
+                    } catch (e) {
+                      print('✗ Error parsing employee at index $i');
+                      print('Data: ${data[i]}');
+                      print('Error: $e');
+                      // Skip employee yang error
+                    }
+                  }
+                  print('Total employees loaded: ${_employees.length}');
+                });
+              }
+            } else {
+              _showSnackBar('Format data tidak sesuai.', isError: true);
+            }
+          }
+        } catch (e) {
+          print('JSON Parse Error: $e');
+          print('Response body: ${response.body}');
+          _showSnackBar('Gagal memproses data: ${e.toString()}', isError: true);
+        }
+      } else if (response.statusCode == 401) {
+        _showSnackBar('Sesi login berakhir, silakan login kembali', isError: true);
       } else {
-        _showSnackBar('Gagal memuat data karyawan.', isError: true);
+        _showSnackBar('Gagal memuat data karyawan. Status: ${response.statusCode}', isError: true);
       }
+    } on TimeoutException catch (_) {
+      _showSnackBar('Koneksi timeout, coba lagi', isError: true);
+    } on http.ClientException catch (e) {
+      _showSnackBar('Kesalahan koneksi: ${e.message}', isError: true);
     } catch (e) {
-      _showSnackBar('Terjadi kesalahan: $e', isError: true);
+      print('General Error: $e');
+      _showSnackBar('Terjadi kesalahan: ${e.toString()}', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -479,7 +584,6 @@ class _AdminListAbsensiKaryawanScreenState
                       // NIK
                       _buildInfoRow(
                         icon: Icons.badge_outlined,
-                        // label: 'Nomor Karyawan',
                         value: employee.nik,
                         color: const Color(0xFF64748B),
                       ),
@@ -487,7 +591,6 @@ class _AdminListAbsensiKaryawanScreenState
                       // Jenis Pekerjaan
                       _buildInfoRow(
                         icon: Icons.work_outline_rounded,
-                        // label: 'Jenis Pekerjaan',
                         value: employee.jabatan,
                         color: avatarColor,
                       ),
@@ -517,7 +620,6 @@ class _AdminListAbsensiKaryawanScreenState
 
   Widget _buildInfoRow({
     required IconData icon,
-    // required String label,
     required String value,
     required Color color,
   }) {
@@ -525,13 +627,6 @@ class _AdminListAbsensiKaryawanScreenState
       children: [
         Icon(icon, size: 16, color: color),
         const SizedBox(width: 8),
-        // Text(
-        //   // '$label: ',
-        //   style: PoppinsTextStyle.medium.copyWith(
-        //     fontSize: 13,
-        //     color: Colors.grey[600],
-        //   ),
-        // ),
         Expanded(
           child: Text(
             value,

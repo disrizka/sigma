@@ -99,7 +99,8 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
     DateTime now = DateTime.now();
     List<String> months = [];
 
-    for (int i = 0; i < 6; i++) {
+    // 5 tahun = 60 bulan
+    for (int i = 0; i < 60; i++) {
       DateTime date = DateTime(now.year, now.month - i, 1);
       String monthYear = DateFormat('MMMM yyyy', 'id_ID').format(date);
       months.add(monthYear);
@@ -111,7 +112,7 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
       _selectedBulan = months.isNotEmpty ? months[0] : '';
     });
 
-    print('✅ Bulan options berhasil: $_bulanOptions');
+    print('✅ Bulan options berhasil: ${_bulanOptions.length} bulan');
     print('✅ Selected bulan: $_selectedBulan');
   }
 
@@ -210,7 +211,6 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               '📊 Payslip Response Status untuk ${employee['name']}: ${payslipResponse.statusCode}',
             );
 
-            // ✅ GANTI BAGIAN INI (sekitar baris 157-183):
 
             if (payslipResponse.statusCode == 200) {
               var responseData = json.decode(payslipResponse.body);
@@ -219,16 +219,13 @@ class _AdminSlipGajiListScreenState extends State<AdminSlipGajiListScreen> {
               var payslipData = responseData['data'];
               print('💰 Payslip Data: $payslipData');
 
-              // ✅ TAMBAH VALIDASI: Hanya tambahkan jika ada data gaji
               int gajiPokok = _parseToInt(payslipData['total_basic_salary']);
               int tunjangan = _parseToInt(payslipData['total_allowance']);
               int potongan = _parseToInt(payslipData['total_deduction']);
               int pajak = _parseToInt(payslipData['tax']);
 
-              // Hitung gaji bersih
               int gajiBersih = gajiPokok + tunjangan - (potongan + pajak);
 
-              // ✅ FILTER: Hanya tampilkan jika gaji bersih > 0 ATAU minimal ada gaji pokok
               if (gajiBersih > 0 || gajiPokok > 0) {
                 slipGajiList.add(
                   KaryawanSlipGaji(
