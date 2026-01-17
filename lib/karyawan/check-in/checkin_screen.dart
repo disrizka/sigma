@@ -31,6 +31,10 @@ class _CheckinScreenState extends State<CheckinScreen> {
   //kampus
   // static const double LOKASI_LAT = -6.3365;
   // static const double LOKASI_LNG = 106.8358;
+  
+  //rumah leni
+  //  static const double LOKASI_LAT = -6.4780242;
+  //   static const double LOKASI_LNG = 106.7645322;
 
   //rumah
   static const double LOKASI_LAT = -6.4780242;
